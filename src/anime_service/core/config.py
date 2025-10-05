@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, BaseModel, Field, HttpUrl, PositiveInt
+from pydantic import BaseModel, Field, HttpUrl, PositiveInt, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,12 +25,8 @@ class SchedulerSettings(BaseModel):
 
 
 class MongoSettings(BaseModel):
-    uri: str = Field(
-        validation_alias=AliasChoices("MONGODB_URI", "MONGO__URI", "uri")
-    )
-    db_name: str = Field(
-        validation_alias=AliasChoices("MONGODB_DB_NAME", "MONGO__DB_NAME", "db_name")
-    )
+    uri: str
+    db_name: str
     tls_ca_file: Path | None = Field(default=None)
 
 
@@ -55,12 +51,25 @@ class ServiceSettings(BaseSettings):
 
     api: APISettings = Field(default_factory=APISettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
-    mongo: MongoSettings
+    mongo: MongoSettings | None = None
+    mongo_uri: str = Field(validation_alias="MONGODB_URI")
+    mongo_db_name: str = Field(validation_alias="MONGODB_DB_NAME")
+    mongo_tls_ca_file: Path | None = Field(default=None)
     nyaa: NyaaSettings = Field(default_factory=NyaaSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     metrics: MetricsSettings = Field(default_factory=MetricsSettings)
 
     create_missing_save_dirs: bool = Field(default=True)
+
+    @model_validator(mode="after")
+    def _populate_mongo(self) -> ServiceSettings:
+        if self.mongo is None:
+            self.mongo = MongoSettings(
+                uri=self.mongo_uri,
+                db_name=self.mongo_db_name,
+                tls_ca_file=self.mongo_tls_ca_file,
+            )
+        return self
 
 
 @lru_cache(maxsize=1)
