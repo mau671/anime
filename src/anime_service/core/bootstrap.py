@@ -91,7 +91,7 @@ async def build_container() -> AsyncIterator[ServiceContainer]:
         await nyaa_client.close()
         await anilist_client.close()
         motor_client.close()
-        if scheduler.running:
+        if scheduler.running and not getattr(scheduler, "_shutdown_requested", False):
             try:
                 scheduler.shutdown(wait=False)
             except SchedulerNotRunningError:

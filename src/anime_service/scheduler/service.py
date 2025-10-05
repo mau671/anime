@@ -38,6 +38,8 @@ class SchedulerService:
         self._anilist_client = anilist_client
         self._nyaa_client = nyaa_client
         self._downloader = downloader
+        self._shutdown_requested = False
+        self._scheduler._shutdown_requested = False
 
     async def initialize(self) -> None:
         await self._anime_repo.ensure_indexes()
@@ -64,8 +66,12 @@ class SchedulerService:
         )
         self._scheduler.start()
         self._logger.info("scheduler_started")
+        self._shutdown_requested = False
+        self._scheduler._shutdown_requested = False
 
     async def shutdown(self) -> None:
+        self._shutdown_requested = True
+        self._scheduler._shutdown_requested = True
         if self._scheduler.running:
             try:
                 self._scheduler.shutdown(wait=False)
