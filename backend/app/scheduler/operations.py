@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Mapping
 from pathlib import Path
 
 from structlog.stdlib import BoundLogger
@@ -7,7 +9,12 @@ from structlog.stdlib import BoundLogger
 from app.anilist.client import AniListClient
 from app.anilist.models import Anime
 from app.core.config import ServiceSettings
-from app.core.utils import ensure_directory, sanitize_save_path, utc_now
+from app.core.utils import (
+    ensure_directory,
+    render_save_path_template,
+    sanitize_save_path,
+    utc_now,
+)
 from app.db.models import AnimeDocument, TorrentSeenDocument
 from app.db.repositories import (
     AnimeRepository,
@@ -23,6 +30,8 @@ from app.metrics.registry import (
 )
 from app.scraper.filters import NyaaFilterInput, matches_filters
 from app.scraper.nyaa_client import NyaaClient
+from app.tmdb.client import TMDBClient
+from app.tvdb.client import TVDBClient
 
 
 def _anime_to_document(anime: Anime) -> AnimeDocument:
@@ -105,11 +114,27 @@ async def scan_nyaa_sources(
             continue
 
         save_path_raw = entry.get("save_path")
-        if not save_path_raw:
+        save_path_template = entry.get("save_path_template")
+        resolved_save_path: Path | None = None
+
+        if save_path_template:
+            mapping = _build_template_values(settings, entry, anime)
+            rendered = render_save_path_template(save_path_template, mapping)
+            if not rendered:
+                logger.warning(
+                    "nyaa_save_path_template_empty",
+                    anilist_id=anilist_id,
+                    template=save_path_template,
+                )
+                continue
+            resolved_save_path = sanitize_save_path(Path(rendered))
+        elif save_path_raw:
+            resolved_save_path = sanitize_save_path(Path(save_path_raw))
+        else:
             logger.warning("nyaa_scan_missing_save_path", anilist_id=anilist_id)
             continue
 
-        save_path = sanitize_save_path(Path(save_path_raw))
+        save_path = resolved_save_path
         try:
             ensure_directory(save_path, create=settings.create_missing_save_dirs, logger=logger)
         except ValueError as exc:

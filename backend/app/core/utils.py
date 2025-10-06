@@ -4,11 +4,14 @@ import asyncio
 import os
 import re
 import tempfile
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
 from structlog.stdlib import BoundLogger
+
+
+TemplateContext = Mapping[str, object | None]
 
 INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*]')
 MULTIPLE_SPACES = re.compile(r"\s+")
@@ -26,6 +29,55 @@ def sanitize_filename(title: str) -> str:
 
 def sanitize_save_path(base_path: Path) -> Path:
     return base_path.expanduser().resolve()
+
+
+def _flatten_context(prefix: str, value: object, *, sanitize_values: bool) -> dict[str, str]:
+    flattened: dict[str, str] = {}
+    if isinstance(value, Mapping):
+        for key, nested_value in value.items():
+            if nested_value is None:
+                continue
+            nested_key = f"{prefix}.{key}" if prefix else str(key)
+            flattened.update(
+                _flatten_context(nested_key, nested_value, sanitize_values=sanitize_values)
+            )
+    elif isinstance(value, (list, tuple, set)):
+        items = [str(item) for item in value if item is not None]
+        if sanitize_values:
+            items = [sanitize_filename(item) for item in items]
+        flattened[prefix] = ", ".join(items)
+    elif value is not None:
+        text = str(value)
+        flattened[prefix] = sanitize_filename(text) if sanitize_values else text
+    return flattened
+
+
+def build_template_mapping(
+    context: TemplateContext, *, sanitize_values: bool = False
+) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for key, value in context.items():
+        if value is None:
+            continue
+        key_str = str(key)
+        mapping.update(_flatten_context(key_str, value, sanitize_values=sanitize_values))
+    return mapping
+
+
+def render_save_path_template(template: str, mapping: TemplateContext) -> str:
+    flattened = build_template_mapping(mapping, sanitize_values=True)
+
+    def replacement(match: re.Match[str]) -> str:
+        placeholder = match.group(1)
+        if not placeholder:
+            return match.group(0)
+        value = flattened.get(placeholder, "")
+        return value
+
+    pattern = re.compile(r"\{\s*([^{}\s]+)\s*\}")
+    rendered = pattern.sub(replacement, template)
+    cleaned = MULTIPLE_SPACES.sub(" ", rendered)
+    return cleaned.strip()
 
 
 def ensure_directory(path: Path, create: bool, logger: BoundLogger | None = None) -> None:
