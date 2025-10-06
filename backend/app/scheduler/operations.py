@@ -123,10 +123,12 @@ async def _build_template_values(
         try:
             tvdb_meta = await tvdb_client.get_metadata(tvdb_id, season=tvdb_season)
             if tvdb_meta:
-                # Add seasonNumber alias for clarity
+                # Format season number with zero padding for templates
                 tvdb_meta_enhanced = dict(tvdb_meta)
-                if "season" in tvdb_meta_enhanced:
-                    tvdb_meta_enhanced["seasonNumber"] = tvdb_meta_enhanced["season"]
+                season_num = tvdb_meta_enhanced.get("season")
+                if season_num is not None:
+                    # Format with zero padding (01, 02, 10, etc.)
+                    tvdb_meta_enhanced["seasonNumber"] = f"{season_num:02d}"
                 context["tvdb"] = tvdb_meta_enhanced
         except Exception as exc:  # noqa: BLE001
             logger.warning(
@@ -143,10 +145,12 @@ async def _build_template_values(
         try:
             tmdb_meta = await tmdb_client.get_metadata(tmdb_id, season=tmdb_season)
             if tmdb_meta:
-                # Add seasonNumber alias for clarity
+                # Format season number with zero padding for templates
                 tmdb_meta_enhanced = dict(tmdb_meta)
-                if "season" in tmdb_meta_enhanced:
-                    tmdb_meta_enhanced["seasonNumber"] = tmdb_meta_enhanced["season"]
+                season_num = tmdb_meta_enhanced.get("season")
+                if season_num is not None:
+                    # Format with zero padding (01, 02, 10, etc.)
+                    tmdb_meta_enhanced["seasonNumber"] = f"{season_num:02d}"
                 context["tmdb"] = tmdb_meta_enhanced
         except Exception as exc:  # noqa: BLE001
             logger.warning(

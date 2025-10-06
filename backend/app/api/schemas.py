@@ -105,6 +105,7 @@ class TVDBMetadata(APIModel):
     network: str | None = None
     runtime: int | None = None
     season: int | None = None
+    season_number: str | None = Field(default=None, alias="seasonNumber")  # Zero-padded season (e.g., "01", "08")
 
 
 class TMDBMetadata(APIModel):
@@ -122,6 +123,7 @@ class TMDBMetadata(APIModel):
     runtime: int | None = None
     genres: list[str] | None = None
     season: int | None = None
+    season_number: str | None = Field(default=None, alias="seasonNumber")  # Zero-padded season (e.g., "01", "08")
     season_name: str | None = None
     season_overview: str | None = None
     season_air_date: str | None = None

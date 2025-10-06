@@ -177,7 +177,7 @@ class TVDBClient:
             "image": payload.get("image"),
             "network": payload.get("network"),
             "runtime": payload.get("runtime"),
-            "season": season,
+            "season": season,  # This is the configured season number from settings
         }
         
         # Add translated name separately if different from original
