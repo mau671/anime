@@ -93,7 +93,9 @@ class SettingsResource(APIModel):
 
 class TVDBMetadata(APIModel):
     id: int
-    name: str | None = None
+    name: str | None = None  # Translated name (if available) or original
+    name_original: str | None = Field(default=None, alias="nameOriginal")  # Original name
+    name_translated: str | None = Field(default=None, alias="nameTranslated")  # Translated name (only if different)
     slug: str | None = None
     status: str | None = None
     overview: str | None = None

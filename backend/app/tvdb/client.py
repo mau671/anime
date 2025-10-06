@@ -67,7 +67,11 @@ class TVDBClient:
         if response is None:
             return None
         payload = response.json().get("data") or {}
-        return self._transform_series_payload(series_id, payload, season)
+        
+        # Try to get translation in the specified language
+        translation = await self._get_translation(series_id, headers)
+        
+        return self._transform_series_payload(series_id, payload, season, translation)
 
     async def _build_auth_headers(self) -> dict[str, str]:
         token = await self._get_token()
@@ -77,6 +81,29 @@ class TVDBClient:
         if self._language:
             headers["Accept-Language"] = self._language
         return headers
+    
+    async def _get_translation(self, series_id: int, headers: dict[str, str]) -> dict[str, Any] | None:
+        """Fetch translation for the series in the specified language."""
+        if not self._language:
+            return None
+        
+        try:
+            response = await self._request(
+                "GET",
+                f"/series/{series_id}/translations/{self._language}",
+                headers=headers,
+            )
+            if response is None:
+                return None
+            
+            data = response.json().get("data")
+            if data:
+                return data
+        except httpx.HTTPError:
+            # Translation not available, continue with original name
+            pass
+        
+        return None
 
     async def _get_token(self) -> str:
         if not self._api_key:
@@ -118,6 +145,7 @@ class TVDBClient:
         series_id: int,
         payload: dict[str, Any],
         season: int | None,
+        translation: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         first_aired = payload.get("firstAired")
         year: int | None = None
@@ -132,12 +160,18 @@ class TVDBClient:
         elif isinstance(status_raw, str):
             status = status_raw
         
-        return {
+        # Get names - prefer translation if available
+        original_name = payload.get("name")
+        translated_name = translation.get("name") if translation else None
+        
+        # Use translated name as primary, keep both for reference
+        result = {
             "id": series_id,
-            "name": payload.get("name"),
+            "name": translated_name or original_name,  # Prefer translation
+            "nameOriginal": original_name,  # Always include original
             "slug": payload.get("slug"),
             "status": status,
-            "overview": payload.get("overview"),
+            "overview": translation.get("overview") if translation else payload.get("overview"),
             "first_aired": first_aired,
             "year": year,
             "image": payload.get("image"),
@@ -145,3 +179,9 @@ class TVDBClient:
             "runtime": payload.get("runtime"),
             "season": season,
         }
+        
+        # Add translated name separately if different from original
+        if translated_name and translated_name != original_name:
+            result["nameTranslated"] = translated_name
+        
+        return result
