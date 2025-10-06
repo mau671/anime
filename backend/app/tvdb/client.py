@@ -123,11 +123,20 @@ class TVDBClient:
         year: int | None = None
         if isinstance(first_aired, str) and len(first_aired) >= 4 and first_aired[:4].isdigit():
             year = int(first_aired[:4])
+        
+        # Extract status name if it's a dict, otherwise use as-is
+        status_raw = payload.get("status")
+        status: str | None = None
+        if isinstance(status_raw, dict):
+            status = status_raw.get("name")
+        elif isinstance(status_raw, str):
+            status = status_raw
+        
         return {
             "id": series_id,
             "name": payload.get("name"),
             "slug": payload.get("slug"),
-            "status": payload.get("status"),
+            "status": status,
             "overview": payload.get("overview"),
             "first_aired": first_aired,
             "year": year,
