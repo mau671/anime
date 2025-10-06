@@ -46,6 +46,7 @@ services:
     ports:
       - "${BACKEND_HOST_PORT:-3001}:8000"
       - "${BACKEND_METRICS_PORT:-8001}:8001"
+    command: ["/app/.venv/bin/fastapi", "run", "app/main.py", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').getcode()==200 else 1)\""]
       interval: 30s
