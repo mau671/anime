@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from structlog.stdlib import BoundLogger
 
@@ -10,6 +11,7 @@ from app.anilist.client import AniListClient
 from app.anilist.models import Anime
 from app.core.config import ServiceSettings
 from app.core.utils import (
+    TemplateContext,
     ensure_directory,
     render_save_path_template,
     sanitize_save_path,
@@ -38,6 +40,7 @@ def _anime_to_document(anime: Anime) -> AnimeDocument:
     return AnimeDocument(
         anilist_id=anime.anilist_id,
         title=anime.title.model_dump(),
+        format=anime.format,
         season=anime.season,
         season_year=anime.season_year,
         status=anime.status,
@@ -88,6 +91,74 @@ def _build_search_query(setting: dict, anime: dict | None) -> str | None:
     return None
 
 
+async def _build_template_values(
+    entry: dict[str, Any],
+    anime: dict[str, Any] | None,
+    tvdb_client: TVDBClient,
+    tmdb_client: TMDBClient,
+    logger: BoundLogger,
+) -> TemplateContext:
+    """Build template context for save path rendering."""
+    now = utc_now()
+    context: dict[str, Any] = {
+        "currentYear": now.year,
+        "currentMonth": f"{now.month:02d}",
+        "currentDay": f"{now.day:02d}",
+    }
+    
+    # Add anime data with convenient aliases
+    if anime:
+        anime_context = dict(anime)
+        # Add camelCase aliases for consistency
+        if "anilist_id" in anime_context:
+            anime_context["anilistId"] = anime_context["anilist_id"]
+        if "season_year" in anime_context:
+            anime_context["seasonYear"] = anime_context["season_year"]
+        context["anime"] = anime_context
+    
+    # Fetch TVDB metadata if configured
+    tvdb_id = entry.get("tvdb_id")
+    tvdb_season = entry.get("tvdb_season")
+    if tvdb_id is not None and tvdb_client.enabled:
+        try:
+            tvdb_meta = await tvdb_client.get_metadata(tvdb_id, season=tvdb_season)
+            if tvdb_meta:
+                # Add seasonNumber alias for clarity
+                tvdb_meta_enhanced = dict(tvdb_meta)
+                if "season" in tvdb_meta_enhanced:
+                    tvdb_meta_enhanced["seasonNumber"] = tvdb_meta_enhanced["season"]
+                context["tvdb"] = tvdb_meta_enhanced
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "tvdb_metadata_fetch_failed",
+                anilist_id=entry.get("anilist_id"),
+                tvdb_id=tvdb_id,
+                error=str(exc),
+            )
+    
+    # Fetch TMDB metadata if configured
+    tmdb_id = entry.get("tmdb_id")
+    tmdb_season = entry.get("tmdb_season")
+    if tmdb_id is not None and tmdb_client.enabled:
+        try:
+            tmdb_meta = await tmdb_client.get_metadata(tmdb_id, season=tmdb_season)
+            if tmdb_meta:
+                # Add seasonNumber alias for clarity
+                tmdb_meta_enhanced = dict(tmdb_meta)
+                if "season" in tmdb_meta_enhanced:
+                    tmdb_meta_enhanced["seasonNumber"] = tmdb_meta_enhanced["season"]
+                context["tmdb"] = tmdb_meta_enhanced
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "tmdb_metadata_fetch_failed",
+                anilist_id=entry.get("anilist_id"),
+                tmdb_id=tmdb_id,
+                error=str(exc),
+            )
+    
+    return context
+
+
 async def scan_nyaa_sources(
     settings: ServiceSettings,
     anime_repo: AnimeRepository,
@@ -95,6 +166,8 @@ async def scan_nyaa_sources(
     torrent_repo: TorrentSeenRepository,
     nyaa_client: NyaaClient,
     downloader: TorrentDownloader,
+    tvdb_client: TVDBClient,
+    tmdb_client: TMDBClient,
     logger: BoundLogger,
 ) -> None:
     enabled_settings = await settings_repo.list_enabled()
@@ -118,7 +191,7 @@ async def scan_nyaa_sources(
         resolved_save_path: Path | None = None
 
         if save_path_template:
-            mapping = _build_template_values(settings, entry, anime)
+            mapping = await _build_template_values(entry, anime, tvdb_client, tmdb_client, logger)
             rendered = render_save_path_template(save_path_template, mapping)
             if not rendered:
                 logger.warning(

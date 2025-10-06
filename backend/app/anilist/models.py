@@ -15,6 +15,7 @@ class AnimeTitle(BaseModel):
 class Anime(BaseModel):
     anilist_id: int = Field(alias="id")
     title: AnimeTitle
+    format: str | None = None
     season: str | None = None
     season_year: int | None = None
     status: str | None = None
@@ -38,6 +39,7 @@ class Anime(BaseModel):
         payload = {
             "id": data.get("id"),
             "title": data.get("title") or {},
+            "format": data.get("format"),
             "season": data.get("season"),
             "season_year": data.get("seasonYear"),
             "status": data.get("status"),

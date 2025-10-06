@@ -15,6 +15,7 @@ query ($page: Int, $perPage: Int, $season: MediaSeason, $seasonYear: Int, $statu
         english
         native
       }
+      format
       season
       seasonYear
       status

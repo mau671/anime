@@ -14,6 +14,8 @@ from app.db.repositories import (
 from app.downloader.torrent_downloader import TorrentDownloader
 from app.scheduler.operations import scan_nyaa_sources, sync_anilist_catalog
 from app.scraper.nyaa_client import NyaaClient
+from app.tmdb.client import TMDBClient
+from app.tvdb.client import TVDBClient
 
 
 class SchedulerService:
@@ -28,6 +30,8 @@ class SchedulerService:
         anilist_client: AniListClient,
         nyaa_client: NyaaClient,
         downloader: TorrentDownloader,
+        tvdb_client: TVDBClient,
+        tmdb_client: TMDBClient,
     ) -> None:
         self._scheduler = scheduler
         self._settings = settings
@@ -38,6 +42,8 @@ class SchedulerService:
         self._anilist_client = anilist_client
         self._nyaa_client = nyaa_client
         self._downloader = downloader
+        self._tvdb_client = tvdb_client
+        self._tmdb_client = tmdb_client
         self._shutdown_requested = False
         self._scheduler._shutdown_requested = False
 
@@ -96,5 +102,7 @@ class SchedulerService:
             torrent_repo=self._torrent_repo,
             nyaa_client=self._nyaa_client,
             downloader=self._downloader,
+            tvdb_client=self._tvdb_client,
+            tmdb_client=self._tmdb_client,
             logger=self._logger.bind(job="scan_nyaa"),
         )

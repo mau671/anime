@@ -183,6 +183,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             anilist_client=container.anilist_client,
             nyaa_client=container.nyaa_client,
             downloader=container.downloader,
+            tvdb_client=container.tvdb_client,
+            tmdb_client=container.tmdb_client,
         )
         await scheduler.start()
         app.state.container = container
@@ -419,6 +421,8 @@ async def trigger_scan(
         torrent_repo=container.torrent_repo,
         nyaa_client=container.nyaa_client,
         downloader=container.downloader,
+        tvdb_client=container.tvdb_client,
+        tmdb_client=container.tmdb_client,
         logger=container.logger,
     )
     return ScanNyaaResponse(status="completed")

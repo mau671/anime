@@ -60,6 +60,24 @@ class FakeDownloader:
         return path
 
 
+class FakeTVDBClient:
+    @property
+    def enabled(self) -> bool:
+        return False
+
+    async def get_metadata(self, series_id: int, season: int | None = None) -> dict | None:  # noqa: ARG002
+        return None
+
+
+class FakeTMDBClient:
+    @property
+    def enabled(self) -> bool:
+        return False
+
+    async def get_metadata(self, tmdb_id: int, season: int | None = None) -> dict | None:  # noqa: ARG002
+        return None
+
+
 @pytest.mark.asyncio
 async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
     items = [
@@ -109,6 +127,8 @@ async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
     torrent_repo = FakeTorrentRepo()
     downloader = FakeDownloader(save_dir)
     nyaa_client = FakeNyaaClient(items)
+    tvdb_client = FakeTVDBClient()
+    tmdb_client = FakeTMDBClient()
 
     await scan_nyaa_sources(
         settings=settings,
@@ -117,6 +137,8 @@ async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
         torrent_repo=torrent_repo,
         nyaa_client=nyaa_client,
         downloader=downloader,
+        tvdb_client=tvdb_client,
+        tmdb_client=tmdb_client,
         logger=StubLogger(),
     )
 
