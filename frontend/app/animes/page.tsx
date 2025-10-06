@@ -65,14 +65,6 @@ function resolveCover(anime: AnimeEnvelope["anime"]) {
   return undefined
 }
 
-function resolveAnilistId(anime: AnimeEnvelope["anime"]) {
-  return (
-    anime.anilist_id ??
-    anime.anilistId ??
-    (typeof anime.id === "number" ? anime.id : undefined)
-  )
-}
-
 function AnimeRow({ envelope, settings }: FilteredAnime) {
   const [open, setOpen] = React.useState(false)
   const [detailsOpen, setDetailsOpen] = React.useState(false)

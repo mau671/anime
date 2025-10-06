@@ -1,4 +1,4 @@
-import type { Anime, SettingsEnvelope, TVDBMetadata, TMDBMetadata } from "./api-types"
+import type { SettingsEnvelope } from "./api-types"
 
 export type TemplateVariables = {
   // Date/Time variables

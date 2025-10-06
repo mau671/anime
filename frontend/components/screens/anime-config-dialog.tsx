@@ -43,7 +43,7 @@ import { processPathTemplate } from "@/lib/path-template"
 const formSchema = z.object({
   enabled: z.boolean(),
   save_path: z.string().trim().optional().nullable(),
-  use_global_template: z.boolean().optional().default(false),
+  use_global_template: z.boolean(),
   search_query: z.string().trim().optional().nullable(),
   includes: z.string().optional(),
   excludes: z.string().optional(),
@@ -80,7 +80,7 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
   const [previewPath, setPreviewPath] = React.useState<string>("")
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver<FormValues, Record<string, never>, FormValues>(formSchema),
     defaultValues: {
       enabled: settings?.enabled ?? false,
       save_path: settings?.save_path ?? "",
@@ -117,18 +117,17 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
   }, [settings, form])
 
   // Calculate preview path when relevant values change
+  const tvdbId = form.watch("tvdb_id")
+  const tvdbSeason = form.watch("tvdb_season")
+  const tmdbId = form.watch("tmdb_id")
+  const tmdbSeason = form.watch("tmdb_season")
+
   React.useEffect(() => {
     const template = globalSettings?.[0]?.settings?.save_path_template
     if (!template || !envelope) {
       setPreviewPath("")
       return
     }
-
-    // Create a temporary envelope with current form values
-    const tvdbId = form.watch("tvdb_id")
-    const tvdbSeason = form.watch("tvdb_season")
-    const tmdbId = form.watch("tmdb_id")
-    const tmdbSeason = form.watch("tmdb_season")
 
     const tempEnvelope: SettingsEnvelope = {
       ...envelope,
@@ -148,15 +147,7 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
       console.error("Error processing template:", error)
       setPreviewPath("")
     }
-  }, [
-    envelope,
-    globalSettings,
-    form.watch("tvdb_id"),
-    form.watch("tvdb_season"),
-    form.watch("tmdb_id"),
-    form.watch("tmdb_season"),
-    form,
-  ])
+  }, [envelope, globalSettings, tvdbId, tvdbSeason, tmdbId, tmdbSeason])
 
   const onSubmit = form.handleSubmit(async (values) => {
     const parseList = (value?: string) =>

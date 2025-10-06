@@ -34,26 +34,6 @@ import { AVAILABLE_VARIABLES, TEMPLATE_EXAMPLES } from "@/lib/path-template"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 
-type GlobalSetting = {
-  title: string
-  description: string
-  placeholder?: string
-  key: keyof SettingsEnvelope["settings"]
-}
-
-const metadataFields: GlobalSetting[] = [
-  {
-    title: "Resolución por defecto",
-    description: "Aplica cuando no se configure una resolución específica.",
-    key: "preferred_resolution",
-  },
-  {
-    title: "Fansub por defecto",
-    description: "Se utilizará como preferencia inicial para los nuevos animes.",
-    key: "preferred_subgroup",
-  },
-]
-
 function SettingsCard({ settings }: { settings?: SettingsEnvelope[] }) {
   // Use anilist_id = 0 for global settings
   const globalSettings = settings?.find(
