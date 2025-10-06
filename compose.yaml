@@ -30,7 +30,7 @@ services:
       mongo:
         condition: service_healthy
     environment:
-      - BACKEND_PORT=${BACKEND_PORT:-8000}
+      - BACKEND_PORT=${BACKEND_PORT:-9000}
       - BACKEND_METRICS_PORT=${BACKEND_METRICS_PORT:-8001}
       - MONGODB_URI=${MONGODB_URI:-mongodb://anime-mongo:27017}
       - MONGODB_DB_NAME=${MONGODB_DB_NAME:-anime}
@@ -38,17 +38,17 @@ services:
       - METRICS__ENABLED=${METRICS_ENABLED:-true}
       - METRICS__BIND_HOST=${METRICS_BIND_HOST:-0.0.0.0}
       - METRICS__BIND_PORT=${METRICS_BIND_PORT:-8001}
-      - CORS_ALLOW_ORIGINS=${BACKEND_CORS_ALLOW_ORIGINS:-["http://localhost:3000"]}
+      - CORS_ALLOW_ORIGINS=${BACKEND_CORS_ALLOW_ORIGINS:-["http://10.10.20.123:3000","http://localhost:3000"]}
       - TVDB__API_KEY=${TVDB_API_KEY:-}
       - TMDB__API_KEY=${TMDB_API_KEY:-}
     volumes:
       - /data/:/storage/data/
     ports:
-      - "${BACKEND_HOST_PORT:-3001}:8000"
+      - "${BACKEND_HOST_PORT:-9000}:9000"
       - "${BACKEND_METRICS_PORT:-8001}:8001"
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9000"]
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').getcode()==200 else 1)\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9000/health').getcode()==200 else 1)\""]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -62,7 +62,7 @@ services:
       dockerfile: Dockerfile
       target: builder
       args:
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://backend:8000}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://10.10.20.123:${BACKEND_HOST_PORT:-9000}}
     container_name: anime-frontend
     restart: unless-stopped
     depends_on:
@@ -70,7 +70,7 @@ services:
         condition: service_healthy
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://backend:8000}
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://10.10.20.123:${BACKEND_HOST_PORT:-9000}}
       - PORT=3000
     command: ["pnpm", "start"]
     ports:
