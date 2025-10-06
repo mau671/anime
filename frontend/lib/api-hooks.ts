@@ -38,14 +38,20 @@ export function useSettings() {
   })
 }
 
+export const GLOBAL_SETTINGS_ID = 0
+
 export function useAnimeSettings(anilistId: number | null) {
   return useSWR(
-    anilistId ? CACHE_KEYS.animeSettings(anilistId) : null,
+    anilistId !== null ? CACHE_KEYS.animeSettings(anilistId) : null,
     async () => {
       const data = await apiFetch<SettingsEnvelope>(`/settings/${anilistId}`)
       return data
     }
   )
+}
+
+export function useGlobalSettings() {
+  return useAnimeSettings(GLOBAL_SETTINGS_ID)
 }
 
 export function useDownloadHistory(anilistId: number | null, limit = 50) {
@@ -75,6 +81,10 @@ export async function updateAnimeSettings(
   ])
 
   return data
+}
+
+export async function updateGlobalSettings(payload: SettingsUpdatePayload) {
+  return updateAnimeSettings(GLOBAL_SETTINGS_ID, payload)
 }
 
 export async function deleteAnimeSettings(anilistId: number) {

@@ -23,7 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useSettings, updateAnimeSettings } from "@/lib/api-hooks"
+import {
+  useSettings,
+  useGlobalSettings,
+  updateGlobalSettings,
+  GLOBAL_SETTINGS_ID,
+} from "@/lib/api-hooks"
 import type { SettingsEnvelope } from "@/lib/api-types"
 import { AVAILABLE_VARIABLES, TEMPLATE_EXAMPLES } from "@/lib/path-template"
 import { toast } from "sonner"
@@ -51,34 +56,42 @@ const metadataFields: GlobalSetting[] = [
 
 function SettingsCard({ settings }: { settings?: SettingsEnvelope[] }) {
   // Use anilist_id = 0 for global settings
-  const GLOBAL_SETTINGS_ID = 0
-  const globalSettings = settings?.find(s => s.settings.anilist_id === GLOBAL_SETTINGS_ID)
+  const globalSettings = settings?.find(
+    (s) => s.settings.anilist_id === GLOBAL_SETTINGS_ID
+  )
   const defaults = globalSettings?.settings
-  
+  const { data: latestGlobalSettings } = useGlobalSettings()
+
   const [season, setSeason] = React.useState<string | undefined>(undefined)
   const [showVariables, setShowVariables] = React.useState(false)
   const [template, setTemplate] = React.useState("")
   const [resolution, setResolution] = React.useState("")
   const [subgroup, setSubgroup] = React.useState("")
   const [isSaving, setIsSaving] = React.useState(false)
+  const [lastSavedAt, setLastSavedAt] = React.useState<string | undefined>(
+    defaults?.updated_at ?? defaults?.created_at ?? undefined
+  )
 
   React.useEffect(() => {
-    if (defaults) {
-      setTemplate(defaults.save_path_template ?? "")
-      setResolution(defaults.preferred_resolution ?? "")
-      setSubgroup(defaults.preferred_subgroup ?? "")
-    }
-  }, [defaults])
+    const source = latestGlobalSettings?.settings ?? defaults
+    if (!source) return
+
+    setTemplate(source.save_path_template ?? "")
+    setResolution(source.preferred_resolution ?? "")
+    setSubgroup(source.preferred_subgroup ?? "")
+    setLastSavedAt(source.updated_at ?? source.created_at ?? undefined)
+  }, [defaults, latestGlobalSettings])
 
   const handleSave = async () => {
     try {
       setIsSaving(true)
-      // Always use ID 0 for global settings
-      await updateAnimeSettings(GLOBAL_SETTINGS_ID, {
+      await updateGlobalSettings({
         save_path_template: template || null,
         preferred_resolution: resolution || null,
         preferred_subgroup: subgroup || null,
       })
+      const now = new Date().toISOString()
+      setLastSavedAt(now)
       toast.success("Ajustes guardados correctamente")
     } catch (error) {
       console.error(error)
@@ -181,7 +194,15 @@ function SettingsCard({ settings }: { settings?: SettingsEnvelope[] }) {
             </Select>
           </div>
 
-          <div className="flex justify-end pt-4 border-t">
+          <div className="flex flex-col gap-2 border-t pt-4">
+            {lastSavedAt ? (
+              <span className="text-xs text-muted-foreground">
+                Última actualización: {new Intl.DateTimeFormat("es", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }).format(new Date(lastSavedAt))}
+              </span>
+            ) : null}
             <Button onClick={handleSave} disabled={isSaving}>
               {isSaving && <Loader2 className="size-4 animate-spin" />}
               Guardar cambios

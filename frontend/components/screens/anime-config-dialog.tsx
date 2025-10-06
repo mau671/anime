@@ -43,6 +43,7 @@ import { processPathTemplate } from "@/lib/path-template"
 const formSchema = z.object({
   enabled: z.boolean(),
   save_path: z.string().trim().optional().nullable(),
+  use_global_template: z.boolean().optional().default(false),
   search_query: z.string().trim().optional().nullable(),
   includes: z.string().optional(),
   excludes: z.string().optional(),
@@ -83,6 +84,7 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
     defaultValues: {
       enabled: settings?.enabled ?? false,
       save_path: settings?.save_path ?? "",
+      use_global_template: !settings?.save_path,
       search_query: settings?.search_query ?? "",
       includes: settings?.includes?.join("\n") ?? "",
       excludes: settings?.excludes?.join("\n") ?? "",
@@ -100,6 +102,7 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
     form.reset({
       enabled: settings?.enabled ?? false,
       save_path: settings?.save_path ?? "",
+      use_global_template: !settings?.save_path,
       search_query: settings?.search_query ?? "",
       includes: settings?.includes?.join("\n") ?? "",
       excludes: settings?.excludes?.join("\n") ?? "",
@@ -165,6 +168,8 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
     const includesList = parseList(values.includes)
     const excludesList = parseList(values.excludes)
     
+    const savePathValue = values.use_global_template ? null : values.save_path || null
+
     const parseNumber = (value?: string) => {
       if (!value || value.trim() === "") return null
       const parsed = parseInt(value, 10)
@@ -174,7 +179,7 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
     try {
       await updateAnimeSettings(anime.anime.anilist_id ?? 0, {
         enabled: values.enabled,
-        save_path: values.save_path || null,
+        save_path: savePathValue,
         search_query: values.search_query || null,
         includes: includesList ?? [],
         excludes: excludesList ?? [],
@@ -251,6 +256,25 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
             <div className="grid gap-4 md:grid-cols-2">
               <FormField
                 control={form.control}
+                name="use_global_template"
+                render={({ field }) => (
+                  <FormItem className="col-span-full flex items-start justify-between gap-4 rounded-md border p-3">
+                    <div className="flex flex-col gap-1">
+                      <FormLabel>Usar plantilla global de rutas</FormLabel>
+                      <FormDescription>
+                        Cuando está activado, la ruta se generará automáticamente con la plantilla definida en los ajustes globales.
+                      </FormDescription>
+                    </div>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={(value) => field.onChange(Boolean(value))}
+                    />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name="save_path"
                 render={({ field }) => (
                   <FormItem>
@@ -263,10 +287,11 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
                         onBlur={field.onBlur}
                         name={field.name}
                         ref={field.ref}
+                        disabled={form.watch("use_global_template")}
                       />
                     </FormControl>
                     <FormDescription>
-                      Carpeta donde se guardarán los archivos descargados.
+                      Carpeta donde se guardarán los archivos descargados. Se deshabilita cuando se usa la plantilla global.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
