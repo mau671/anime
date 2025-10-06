@@ -41,6 +41,8 @@ services:
       - CORS_ALLOW_ORIGINS=${BACKEND_CORS_ALLOW_ORIGINS:-["http://localhost:3000"]}
       - TVDB__API_KEY=${TVDB_API_KEY:-}
       - TMDB__API_KEY=${TMDB_API_KEY:-}
+    volumes:
+      - /data/:/storage/data/
     ports:
       - "${BACKEND_HOST_PORT:-8080}:8000"
       - "${BACKEND_METRICS_PORT:-8001}:8001"
