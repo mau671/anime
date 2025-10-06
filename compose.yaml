@@ -39,8 +39,8 @@ services:
       - METRICS__BIND_HOST=${METRICS_BIND_HOST:-0.0.0.0}
       - METRICS__BIND_PORT=${METRICS_BIND_PORT:-8001}
       - CORS_ALLOW_ORIGINS=${BACKEND_CORS_ALLOW_ORIGINS:-["http://localhost:3000"]}
-      - TVDB__API_KEY=${TVDB_API_KEY:-}
-      - TMDB__API_KEY=${TMDB_API_KEY:-}
+      - TVDB__API_KEY=${TVDB__API_KEY:-}
+      - TMDB__API_KEY=${TMDB__API_KEY:-}
     volumes:
       - /data/:/storage/data/
     ports:
