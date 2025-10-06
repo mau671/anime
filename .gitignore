@@ -1,23 +1,44 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-*.pyo
+# General
+.DS_Store
+Thumbs.db
 *.log
-build/
-dist/
-wheels/
-*.egg-info
-.coverage
-htmlcov/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.uv/
 
-# Virtual environments
-.venv/
+# IDEs & editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files
 .env
 .env.*
 !.env.example
-.idea/
-.vscode/
+
+# Python / backend
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.so
+*.egg-info/
+build/
+dist/
+.python-version
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Node / frontend
+node_modules/
+.next/
+out/
+dist/
+pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+.eslintcache
+
+# Misc
+.turbo/
+reports/

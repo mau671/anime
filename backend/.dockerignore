@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.log
+*.sqlite3
+*.db
+.env
+.env.*
+.venv/
+.git/
+.gitignore
+.mypy_cache/
+.pytest_cache/
+ruff_cache/
+__pypackages__/
+node_modules/
+.vscode/
+tests/

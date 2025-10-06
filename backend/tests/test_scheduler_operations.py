@@ -1,0 +1,124 @@
+from __future__ import annotations
+
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from app.scheduler.operations import scan_nyaa_sources
+from app.scraper.models import NyaaItem
+from tests.stubs import StubLogger
+
+
+class FakeAnimeRepo:
+    def __init__(self, mapping: dict[int, dict]) -> None:
+        self._mapping = mapping
+
+    async def get_by_ids(self, ids: list[int]) -> dict[int, dict]:
+        return {i: self._mapping[i] for i in ids}
+
+
+class FakeSettingsRepo:
+    def __init__(self, entries: list[dict]) -> None:
+        self._entries = entries
+
+    async def list_enabled(self) -> list[dict]:
+        return self._entries
+
+
+class FakeTorrentRepo:
+    def __init__(self) -> None:
+        self.seen: set[tuple[int, str]] = set()
+
+    async def exists(self, anilist_id: int, infohash: str | None, link: str) -> bool:
+        key = (anilist_id, infohash or link)
+        return key in self.seen
+
+    async def mark_seen(self, document) -> dict:
+        key = (document.anilist_id, document.infohash or document.link)
+        self.seen.add(key)
+        return {"ok": 1}
+
+
+class FakeNyaaClient:
+    def __init__(self, items: list[NyaaItem]) -> None:
+        self._items = items
+
+    async def fetch(self, query: str) -> list[NyaaItem]:  # noqa: ARG002 - query unused
+        return self._items
+
+
+class FakeDownloader:
+    def __init__(self, dest: Path) -> None:
+        self.dest = dest
+        self.downloads: list[str] = []
+
+    async def download(self, url: str, title: str, infohash: str | None, destination: Path) -> Path:  # noqa: D401
+        self.downloads.append(url)
+        path = destination / f"{infohash or 'file'}.torrent"
+        path.write_bytes(b"dummy")
+        return path
+
+
+@pytest.mark.asyncio
+async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
+    items = [
+        NyaaItem(
+            title="[SubsPlease] Spy x Family - 01 (1080p)",
+            link="https://nyaa.si/download/12345.torrent",
+            magnet=None,
+            infohash="abcdef1234567890abcdef1234567890abcdef12",
+            published_at=None,
+            size=None,
+            seeders=None,
+            leechers=None,
+            resolution="1080P",
+            subgroup="SubsPlease",
+        ),
+        NyaaItem(
+            title="[SubsPlease] Spy x Family - 01 (1080p)",
+            link="https://nyaa.si/download/12345.torrent",
+            magnet=None,
+            infohash="abcdef1234567890abcdef1234567890abcdef12",
+            published_at=None,
+            size=None,
+            seeders=None,
+            leechers=None,
+            resolution="1080P",
+            subgroup="SubsPlease",
+        ),
+    ]
+    save_dir = tmp_path / "downloads"
+    save_dir.mkdir()
+    settings = SimpleNamespace(create_missing_save_dirs=True)
+    settings_repo = FakeSettingsRepo(
+        [
+            {
+                "anilist_id": 1,
+                "enabled": True,
+                "save_path": str(save_dir),
+                "search_query": "Spy x Family",
+                "includes": ["Spy"],
+                "excludes": [],
+                "preferred_resolution": "1080P",
+                "preferred_subgroup": "SubsPlease",
+            }
+        ]
+    )
+    anime_repo = FakeAnimeRepo({1: {"title": {"romaji": "Spy x Family"}, "synonyms": []}})
+    torrent_repo = FakeTorrentRepo()
+    downloader = FakeDownloader(save_dir)
+    nyaa_client = FakeNyaaClient(items)
+
+    await scan_nyaa_sources(
+        settings=settings,
+        anime_repo=anime_repo,
+        settings_repo=settings_repo,
+        torrent_repo=torrent_repo,
+        nyaa_client=nyaa_client,
+        downloader=downloader,
+        logger=StubLogger(),
+    )
+
+    assert len(downloader.downloads) == 1
+    assert (1, items[0].infohash) in torrent_repo.seen
