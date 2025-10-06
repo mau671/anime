@@ -17,13 +17,14 @@ from app.db.mongo import create_motor_client, get_database
 from app.db.repositories import (
     AnimeRepository,
     AnimeSettingsRepository,
+    AppConfigRepository,
     TorrentSeenRepository,
 )
 from app.downloader.torrent_downloader import TorrentDownloader
 from app.metrics.registry import start_metrics_server
+from app.scraper.nyaa_client import NyaaClient
 from app.tmdb.client import TMDBClient
 from app.tvdb.client import TVDBClient
-from app.scraper.nyaa_client import NyaaClient
 
 
 @dataclass
@@ -35,6 +36,7 @@ class ServiceContainer:
     anime_repo: AnimeRepository
     settings_repo: AnimeSettingsRepository
     torrent_repo: TorrentSeenRepository
+    config_repo: AppConfigRepository
     anilist_client: AniListClient
     nyaa_client: NyaaClient
     downloader: TorrentDownloader
@@ -105,6 +107,7 @@ async def build_container() -> AsyncIterator[ServiceContainer]:
             anime_repo=AnimeRepository(db),
             settings_repo=AnimeSettingsRepository(db),
             torrent_repo=TorrentSeenRepository(db),
+            config_repo=AppConfigRepository(db),
             anilist_client=anilist_client,
             nyaa_client=nyaa_client,
             downloader=downloader,

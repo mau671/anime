@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Awaitable
+from typing import Any
 
 from bson import ObjectId
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.config import router as config_router
+from app.api.dependencies import get_container
 from app.api.schemas import (
     AnimeEnvelope,
     AnimeResource,
@@ -23,8 +24,8 @@ from app.api.schemas import (
     SyncAnilistResponse,
     TaskStatusResponse,
     TMDBMetadata,
-    TVDBMetadata,
     TorrentSeenRecord,
+    TVDBMetadata,
 )
 from app.core.bootstrap import ServiceContainer, build_container
 from app.core.config import get_settings
@@ -159,7 +160,9 @@ async def _build_settings_envelope(
             anilist_id=anilist_id,
         )
     settings_model = SettingsResource.model_validate(normalized_settings)
-    anime_model = None if is_global else (_build_anime_resource(anime_entry) if anime_entry else None)
+    anime_model = (
+        None if is_global else (_build_anime_resource(anime_entry) if anime_entry else None)
+    )
     tvdb_model = TVDBMetadata.model_validate(tvdb_meta) if tvdb_meta else None
     tmdb_model = TMDBMetadata.model_validate(tmdb_meta) if tmdb_meta else None
     return SettingsEnvelope(
@@ -180,6 +183,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             anime_repo=container.anime_repo,
             settings_repo=container.settings_repo,
             torrent_repo=container.torrent_repo,
+            config_repo=container.config_repo,
             anilist_client=container.anilist_client,
             nyaa_client=container.nyaa_client,
             downloader=container.downloader,
@@ -209,12 +213,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-def get_container(request: Request) -> ServiceContainer:
-    container: ServiceContainer | None = getattr(request.app.state, "container", None)
-    if container is None:
-        raise HTTPException(status_code=503, detail="Service container not ready")
-    return container
+# Include API routers
+app.include_router(config_router)
 
 
 def get_scheduler(request: Request) -> SchedulerService:
@@ -229,6 +229,7 @@ async def health(container: ServiceContainer = Depends(get_container)) -> TaskSt
     await container.anime_repo.ensure_indexes()
     await container.settings_repo.ensure_indexes()
     await container.torrent_repo.ensure_indexes()
+    await container.config_repo.ensure_indexes()
     await container.mongo_client.admin.command("ping")
     return TaskStatusResponse(status="ok", detail="Service healthy")
 
@@ -244,9 +245,13 @@ async def list_animes(
 
 
 @app.get("/settings", response_model=list[SettingsEnvelope])
-async def list_settings(container: ServiceContainer = Depends(get_container)) -> list[SettingsEnvelope]:
+async def list_settings(
+    container: ServiceContainer = Depends(get_container),
+) -> list[SettingsEnvelope]:
     entries = await container.settings_repo.list_all()
-    anime_ids = [entry["anilist_id"] for entry in entries if entry.get("anilist_id") not in (None, 0)]
+    anime_ids = [
+        entry["anilist_id"] for entry in entries if entry.get("anilist_id") not in (None, 0)
+    ]
     anime_map = await container.anime_repo.get_by_ids(anime_ids) if anime_ids else {}
     envelopes: list[SettingsEnvelope] = []
     for entry in entries:
@@ -419,6 +424,7 @@ async def trigger_scan(
         anime_repo=container.anime_repo,
         settings_repo=container.settings_repo,
         torrent_repo=container.torrent_repo,
+        config_repo=container.config_repo,
         nyaa_client=container.nyaa_client,
         downloader=container.downloader,
         tvdb_client=container.tvdb_client,
@@ -429,7 +435,9 @@ async def trigger_scan(
 
 
 @app.post("/scheduler/reload", response_model=TaskStatusResponse)
-async def reload_scheduler(scheduler: SchedulerService = Depends(get_scheduler)) -> TaskStatusResponse:
+async def reload_scheduler(
+    scheduler: SchedulerService = Depends(get_scheduler),
+) -> TaskStatusResponse:
     await scheduler.shutdown()
     await scheduler.start()
     return TaskStatusResponse(status="ok", detail="Scheduler restarted")

@@ -6,7 +6,12 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument
 
 from app.core.utils import utc_now
-from app.db.models import AnimeDocument, AnimeSettingsDocument, TorrentSeenDocument
+from app.db.models import (
+    AnimeDocument,
+    AnimeSettingsDocument,
+    AppConfigDocument,
+    TorrentSeenDocument,
+)
 
 
 class AnimeRepository:
@@ -106,3 +111,31 @@ class TorrentSeenRepository:
             query["$or"].append({"infohash": infohash})
         query["$or"].append({"link": link})
         return await self._collection.count_documents(query, limit=1) > 0
+
+
+class AppConfigRepository:
+    """Repository for application-wide configuration."""
+
+    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+        self._collection = db["app_config"]
+
+    async def ensure_indexes(self) -> None:
+        await self._collection.create_index("config_key", unique=True)
+
+    async def get(self) -> dict | None:
+        """Get the application configuration (singleton document)."""
+        return await self._collection.find_one({"config_key": "app_config"})
+
+    async def upsert(self, document: AppConfigDocument) -> dict:
+        """Update or create the application configuration."""
+        doc = document.to_mongo_dict()
+        doc["config_key"] = "app_config"  # Ensure singleton key
+        created_at = doc.pop("created_at", None)
+        doc["updated_at"] = utc_now()
+
+        return await self._collection.find_one_and_update(
+            {"config_key": "app_config"},
+            {"$set": doc, "$setOnInsert": {"created_at": created_at or utc_now()}},
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )

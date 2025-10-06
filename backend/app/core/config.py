@@ -83,7 +83,7 @@ class ServiceSettings(BaseSettings):
     )
 
     create_missing_save_dirs: bool = Field(default=True)
-    
+
     # Read API keys directly from environment
     tvdb_api_key: str | None = Field(default=None, validation_alias="TVDB_API_KEY")
     tmdb_api_key: str | None = Field(default=None, validation_alias="TMDB_API_KEY")
@@ -97,7 +97,7 @@ class ServiceSettings(BaseSettings):
                 tls_ca_file=self.mongo_tls_ca_file,
             )
         return self
-    
+
     @model_validator(mode="after")
     def _populate_api_keys(self) -> ServiceSettings:
         """Populate nested settings with API keys from environment."""

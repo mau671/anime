@@ -6,9 +6,9 @@ from types import SimpleNamespace
 import pytest
 
 from app.api.schemas import SettingsUpdatePayload
+from app.core.utils import utc_now
 from app.main import get_settings_by_id, list_settings, update_settings
 from tests.stubs import StubLogger
-from app.core.utils import utc_now
 
 
 class _RecorderMetadataClient:
@@ -32,7 +32,9 @@ class _StubSettingsRepo:
     async def upsert(self, document) -> dict:
         payload = document.model_dump()
         existing = self._storage.get(document.anilist_id)
-        created_at = existing.get("created_at") if existing else payload.get("created_at") or utc_now()
+        created_at = (
+            existing.get("created_at") if existing else payload.get("created_at") or utc_now()
+        )
         record = {
             **payload,
             "created_at": created_at,
@@ -54,7 +56,11 @@ class _StubAnimeRepo:
         self._items = {key: deepcopy(value) for key, value in (items or {}).items()}
 
     async def get_by_ids(self, ids):
-        return {identifier: deepcopy(self._items[identifier]) for identifier in ids if identifier in self._items}
+        return {
+            identifier: deepcopy(self._items[identifier])
+            for identifier in ids
+            if identifier in self._items
+        }
 
 
 def _build_container(*, anime_items: dict[int, dict] | None = None) -> SimpleNamespace:

@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from app.core.utils import utc_now
 
 
 class MongoModel(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
-
-    def to_mongo(self) -> dict[str, Any]:
+    def to_mongo_dict(self) -> dict:
         payload = self.model_dump(by_alias=True, exclude_none=True)
         payload["updated_at"] = payload.get("updated_at") or utc_now()
         return payload
@@ -55,15 +52,39 @@ class AnimeSettingsDocument(MongoModel):
 
 class TorrentSeenDocument(MongoModel):
     anilist_id: int
-    source: str = "nyaa"
     title: str
     link: str
     magnet: str | None = None
-    infohash: str | None = None
+    infohash: str
     published_at: datetime | None = None
-    saved_at: datetime = Field(default_factory=utc_now)
+    seen_at: datetime = Field(default_factory=utc_now)
 
-    def to_mongo(self) -> dict[str, Any]:
-        payload = super().to_mongo()
-        payload.setdefault("saved_at", utc_now())
-        return payload
+
+class AppConfigDocument(MongoModel):
+    """
+    Application-wide configuration settings.
+    Stored in MongoDB with a single document (config_key="app_config").
+    """
+
+    config_key: str = Field(default="app_config")  # Always "app_config" for singleton
+
+    # API Keys
+    tvdb_api_key: str | None = None
+    tmdb_api_key: str | None = None
+
+    # qBittorrent settings
+    qbittorrent_enabled: bool = False
+    qbittorrent_url: str | None = None
+    qbittorrent_username: str | None = None
+    qbittorrent_password: str | None = None
+    qbittorrent_category: str = "anime"
+
+    # Path mapping (backend path -> qBittorrent path)
+    path_mappings: list[dict[str, str]] = Field(default_factory=list)
+    # Example: [{"from": "/storage/data/torrents", "to": "/data/torrents"}]
+
+    # Other app settings
+    auto_add_to_qbittorrent: bool = False
+
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime | None = None

@@ -26,7 +26,9 @@ class TMDBClient:
             "Accept": "application/json",
             "User-Agent": user_agent,
         }
-        self._client = httpx.AsyncClient(base_url=base_url, headers=headers, timeout=timeout_seconds)
+        self._client = httpx.AsyncClient(
+            base_url=base_url, headers=headers, timeout=timeout_seconds
+        )
         self._api_key = api_key
         self._language = language
         self._logger = logger

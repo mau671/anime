@@ -28,6 +28,45 @@ class SettingsUpdatePayload(BaseModel):
     tmdb_season: Annotated[int | None, Field(ge=0)] = None
 
 
+class PathMapping(BaseModel):
+    """Path mapping from backend to qBittorrent."""
+
+    from_path: str = Field(alias="from")
+    to_path: str = Field(alias="to")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AppConfigPayload(BaseModel):
+    """Payload for updating application configuration."""
+
+    tvdb_api_key: str | None = None
+    tmdb_api_key: str | None = None
+    qbittorrent_enabled: bool | None = None
+    qbittorrent_url: str | None = None
+    qbittorrent_username: str | None = None
+    qbittorrent_password: str | None = None
+    qbittorrent_category: str | None = None
+    path_mappings: list[PathMapping] | None = None
+    auto_add_to_qbittorrent: bool | None = None
+
+
+class AppConfigResponse(APIModel):
+    """Response model for application configuration."""
+
+    tvdb_api_key: str | None = None
+    tmdb_api_key: str | None = None
+    qbittorrent_enabled: bool = False
+    qbittorrent_url: str | None = None
+    qbittorrent_username: str | None = None
+    qbittorrent_password: str | None = None  # Will be masked in actual response
+    qbittorrent_category: str = "anime"
+    path_mappings: list[PathMapping] = Field(default_factory=list)
+    auto_add_to_qbittorrent: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
 class TaskStatusResponse(BaseModel):
     status: Literal["ok", "completed", "queued", "failed"]
     detail: str | None = None
@@ -95,7 +134,9 @@ class TVDBMetadata(APIModel):
     id: int
     name: str | None = None  # Translated name (if available) or original
     name_original: str | None = Field(default=None, alias="nameOriginal")  # Original name
-    name_translated: str | None = Field(default=None, alias="nameTranslated")  # Translated name (only if different)
+    name_translated: str | None = Field(
+        default=None, alias="nameTranslated"
+    )  # Translated name (only if different)
     slug: str | None = None
     status: str | None = None
     overview: str | None = None
@@ -105,7 +146,9 @@ class TVDBMetadata(APIModel):
     network: str | None = None
     runtime: int | None = None
     season: int | None = None
-    season_number: str | None = Field(default=None, alias="seasonNumber")  # Zero-padded season (e.g., "01", "08")
+    season_number: str | None = Field(
+        default=None, alias="seasonNumber"
+    )  # Zero-padded season (e.g., "01", "08")
 
 
 class TMDBMetadata(APIModel):
@@ -123,7 +166,9 @@ class TMDBMetadata(APIModel):
     runtime: int | None = None
     genres: list[str] | None = None
     season: int | None = None
-    season_number: str | None = Field(default=None, alias="seasonNumber")  # Zero-padded season (e.g., "01", "08")
+    season_number: str | None = Field(
+        default=None, alias="seasonNumber"
+    )  # Zero-padded season (e.g., "01", "08")
     season_name: str | None = None
     season_overview: str | None = None
     season_air_date: str | None = None

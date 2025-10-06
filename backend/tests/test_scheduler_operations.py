@@ -78,6 +78,16 @@ class FakeTMDBClient:
         return None
 
 
+class FakeConfigRepo:
+    """Stub config repository for testing."""
+
+    async def get(self) -> dict | None:
+        return {
+            "qbittorrent_enabled": False,
+            "auto_add_to_qbittorrent": False,
+        }
+
+
 @pytest.mark.asyncio
 async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
     items = [
@@ -135,6 +145,7 @@ async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
         anime_repo=anime_repo,
         settings_repo=settings_repo,
         torrent_repo=torrent_repo,
+        config_repo=FakeConfigRepo(),
         nyaa_client=nyaa_client,
         downloader=downloader,
         tvdb_client=tvdb_client,

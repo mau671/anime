@@ -10,7 +10,6 @@ from pathlib import Path
 
 from structlog.stdlib import BoundLogger
 
-
 TemplateContext = Mapping[str, object | None]
 
 INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*]')

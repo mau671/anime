@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +19,7 @@ from app.db.models import AnimeDocument, TorrentSeenDocument
 from app.db.repositories import (
     AnimeRepository,
     AnimeSettingsRepository,
+    AppConfigRepository,
     TorrentSeenRepository,
 )
 from app.downloader.torrent_downloader import TorrentDownloader
@@ -105,7 +104,7 @@ async def _build_template_values(
         "currentMonth": f"{now.month:02d}",
         "currentDay": f"{now.day:02d}",
     }
-    
+
     # Add anime data with convenient aliases
     if anime:
         anime_context = dict(anime)
@@ -115,7 +114,7 @@ async def _build_template_values(
         if "season_year" in anime_context:
             anime_context["seasonYear"] = anime_context["season_year"]
         context["anime"] = anime_context
-    
+
     # Fetch TVDB metadata if configured
     tvdb_id = entry.get("tvdb_id")
     tvdb_season = entry.get("tvdb_season")
@@ -137,7 +136,7 @@ async def _build_template_values(
                 tvdb_id=tvdb_id,
                 error=str(exc),
             )
-    
+
     # Fetch TMDB metadata if configured
     tmdb_id = entry.get("tmdb_id")
     tmdb_season = entry.get("tmdb_season")
@@ -159,7 +158,7 @@ async def _build_template_values(
                 tmdb_id=tmdb_id,
                 error=str(exc),
             )
-    
+
     return context
 
 
@@ -168,6 +167,7 @@ async def scan_nyaa_sources(
     anime_repo: AnimeRepository,
     settings_repo: AnimeSettingsRepository,
     torrent_repo: TorrentSeenRepository,
+    config_repo: AppConfigRepository,
     nyaa_client: NyaaClient,
     downloader: TorrentDownloader,
     tvdb_client: TVDBClient,
@@ -178,6 +178,30 @@ async def scan_nyaa_sources(
     if not enabled_settings:
         logger.info("nyaa_scan_skip", reason="no_enabled_settings")
         return
+
+    # Load app configuration for qBittorrent integration
+    app_config = await config_repo.get()
+    qbit_enabled = (
+        app_config
+        and app_config.get("qbittorrent_enabled", False)
+        and app_config.get("auto_add_to_qbittorrent", False)
+    )
+    qbit_client = None
+    path_mapper = None
+
+    if qbit_enabled:
+        from app.qbittorrent.client import QBittorrentClient
+        from app.qbittorrent.path_mapper import PathMapper
+
+        qbit_client = QBittorrentClient(
+            url=app_config.get("qbittorrent_url", ""),
+            username=app_config.get("qbittorrent_username"),
+            password=app_config.get("qbittorrent_password"),
+            category=app_config.get("qbittorrent_category", "anime"),
+            logger=logger.bind(component="qbittorrent"),
+        )
+        path_mapper = PathMapper(app_config.get("path_mappings", []))
+        logger.info("qbittorrent_integration_enabled", url=app_config.get("qbittorrent_url"))
 
     anime_ids = [entry["anilist_id"] for entry in enabled_settings]
     anime_map = await anime_repo.get_by_ids(anime_ids)
@@ -259,6 +283,29 @@ async def scan_nyaa_sources(
 
             TORRENTS_DOWNLOADED.labels(anilist_id=str(anilist_id)).inc()
             logger.info("nyaa_torrent_saved", anilist_id=anilist_id, path=str(filepath))
+
+            # Add to qBittorrent if enabled
+            if qbit_enabled and qbit_client and path_mapper:
+                try:
+                    # Convert save_path from backend to qBittorrent path
+                    qbit_save_path = path_mapper.to_qbittorrent(save_path)
+                    added = await qbit_client.add_torrent(filepath, qbit_save_path)
+                    if added:
+                        logger.info(
+                            "qbittorrent_torrent_added",
+                            anilist_id=anilist_id,
+                            title=item.title,
+                            backend_path=str(save_path),
+                            qbit_path=str(qbit_save_path),
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    logger.error(
+                        "qbittorrent_add_failed",
+                        anilist_id=anilist_id,
+                        title=item.title,
+                        error=str(exc),
+                    )
+
             document = TorrentSeenDocument(
                 anilist_id=anilist_id,
                 title=item.title,
@@ -268,3 +315,7 @@ async def scan_nyaa_sources(
                 published_at=item.published_at,
             )
             await torrent_repo.mark_seen(document)
+
+    # Clean up qBittorrent client
+    if qbit_client:
+        await qbit_client.close()

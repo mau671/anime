@@ -9,6 +9,7 @@ from app.core.config import ServiceSettings
 from app.db.repositories import (
     AnimeRepository,
     AnimeSettingsRepository,
+    AppConfigRepository,
     TorrentSeenRepository,
 )
 from app.downloader.torrent_downloader import TorrentDownloader
@@ -27,6 +28,7 @@ class SchedulerService:
         anime_repo: AnimeRepository,
         settings_repo: AnimeSettingsRepository,
         torrent_repo: TorrentSeenRepository,
+        config_repo: AppConfigRepository,
         anilist_client: AniListClient,
         nyaa_client: NyaaClient,
         downloader: TorrentDownloader,
@@ -39,6 +41,7 @@ class SchedulerService:
         self._anime_repo = anime_repo
         self._settings_repo = settings_repo
         self._torrent_repo = torrent_repo
+        self._config_repo = config_repo
         self._anilist_client = anilist_client
         self._nyaa_client = nyaa_client
         self._downloader = downloader
@@ -100,6 +103,7 @@ class SchedulerService:
             anime_repo=self._anime_repo,
             settings_repo=self._settings_repo,
             torrent_repo=self._torrent_repo,
+            config_repo=self._config_repo,
             nyaa_client=self._nyaa_client,
             downloader=self._downloader,
             tvdb_client=self._tvdb_client,

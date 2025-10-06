@@ -29,7 +29,9 @@ class TVDBClient:
             "Accept": "application/json",
             "User-Agent": user_agent,
         }
-        self._client = httpx.AsyncClient(base_url=base_url, headers=headers, timeout=timeout_seconds)
+        self._client = httpx.AsyncClient(
+            base_url=base_url, headers=headers, timeout=timeout_seconds
+        )
         self._api_key = api_key
         self._language = language
         self._logger = logger
@@ -50,7 +52,9 @@ class TVDBClient:
     def enabled(self) -> bool:
         return bool(self._api_key)
 
-    async def get_metadata(self, series_id: int, season: int | None = None) -> dict[str, Any] | None:
+    async def get_metadata(
+        self, series_id: int, season: int | None = None
+    ) -> dict[str, Any] | None:
         if not self.enabled:
             return None
 
@@ -67,10 +71,10 @@ class TVDBClient:
         if response is None:
             return None
         payload = response.json().get("data") or {}
-        
+
         # Try to get translation in the specified language
         translation = await self._get_translation(series_id, headers)
-        
+
         return self._transform_series_payload(series_id, payload, season, translation)
 
     async def _build_auth_headers(self) -> dict[str, str]:
@@ -81,12 +85,14 @@ class TVDBClient:
         if self._language:
             headers["Accept-Language"] = self._language
         return headers
-    
-    async def _get_translation(self, series_id: int, headers: dict[str, str]) -> dict[str, Any] | None:
+
+    async def _get_translation(
+        self, series_id: int, headers: dict[str, str]
+    ) -> dict[str, Any] | None:
         """Fetch translation for the series in the specified language."""
         if not self._language:
             return None
-        
+
         try:
             response = await self._request(
                 "GET",
@@ -95,14 +101,14 @@ class TVDBClient:
             )
             if response is None:
                 return None
-            
+
             data = response.json().get("data")
             if data:
                 return data
         except httpx.HTTPError:
             # Translation not available, continue with original name
             pass
-        
+
         return None
 
     async def _get_token(self) -> str:
@@ -113,7 +119,9 @@ class TVDBClient:
         async with self._token_lock:
             if self._token and self._token_expiry > utc_now():
                 return self._token
-            response = await self._request("POST", "/login", json={"apikey": self._api_key}, capture_404=False)
+            response = await self._request(
+                "POST", "/login", json={"apikey": self._api_key}, capture_404=False
+            )
             data = response.json().get("data") if response is not None else None
             token = (data or {}).get("token")
             if not token:
@@ -151,7 +159,7 @@ class TVDBClient:
         year: int | None = None
         if isinstance(first_aired, str) and len(first_aired) >= 4 and first_aired[:4].isdigit():
             year = int(first_aired[:4])
-        
+
         # Extract status name if it's a dict, otherwise use as-is
         status_raw = payload.get("status")
         status: str | None = None
@@ -159,11 +167,11 @@ class TVDBClient:
             status = status_raw.get("name")
         elif isinstance(status_raw, str):
             status = status_raw
-        
+
         # Get names - prefer translation if available
         original_name = payload.get("name")
         translated_name = translation.get("name") if translation else None
-        
+
         # Use translated name as primary, keep both for reference
         result = {
             "id": series_id,
@@ -179,9 +187,9 @@ class TVDBClient:
             "runtime": payload.get("runtime"),
             "season": season,  # This is the configured season number from settings
         }
-        
+
         # Add translated name separately if different from original
         if translated_name and translated_name != original_name:
             result["nameTranslated"] = translated_name
-        
+
         return result
