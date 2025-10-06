@@ -128,6 +128,85 @@ export type SettingsUpdatePayload = {
   tmdb_season?: number | null
 }
 
+export type PathMapping = {
+  from: string
+  to: string
+}
+
+export type AppConfig = {
+  tvdb_api_key?: string | null
+  tmdb_api_key?: string | null
+  qbittorrent_enabled: boolean
+  qbittorrent_url?: string | null
+  qbittorrent_username?: string | null
+  qbittorrent_password?: string | null
+  qbittorrent_category: string
+  path_mappings: PathMapping[]
+  auto_add_to_qbittorrent: boolean
+  default_save_path?: string | null
+  default_save_path_template?: string | null
+  default_search_query_template?: string | null
+  default_preferred_resolution?: string | null
+  default_preferred_subgroup?: string | null
+  default_auto_query_from_synonyms: boolean
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export type AppConfigPayload = Partial<
+  Omit<
+    AppConfig,
+    | "created_at"
+    | "updated_at"
+    | "path_mappings"
+    | "qbittorrent_enabled"
+    | "auto_add_to_qbittorrent"
+    | "qbittorrent_category"
+  >
+> & {
+  qbittorrent_enabled?: boolean | null
+  auto_add_to_qbittorrent?: boolean | null
+  qbittorrent_category?: string | null
+  path_mappings?: PathMapping[] | null
+}
+
+export type TaskHistoryEntry = {
+  id?: string
+  task_id?: string
+  task_type?: string | null
+  status?: string | null
+  detail?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  anilist_id?: number | null
+  [key: string]: unknown
+}
+
+export type TaskHistoryResponse = {
+  items?: TaskHistoryEntry[]
+  results?: TaskHistoryEntry[]
+  data?: TaskHistoryEntry[]
+  total?: number
+  [key: string]: unknown
+}
+
+export type RunningTasksResponse = {
+  items?: TaskHistoryEntry[]
+  data?: TaskHistoryEntry[]
+  [key: string]: unknown
+}
+
+export type TaskStatisticsResponse = {
+  [key: string]: unknown
+}
+
+export type TaskTypesResponse = (string | { value?: string; label?: string })[] | {
+  items?: (string | { value?: string; label?: string })[]
+  [key: string]: unknown
+}
+
 export type TorrentSeenRecord = {
   id?: string | null
   title: string

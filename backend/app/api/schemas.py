@@ -49,6 +49,12 @@ class AppConfigPayload(BaseModel):
     qbittorrent_category: str | None = None
     path_mappings: list[PathMapping] | None = None
     auto_add_to_qbittorrent: bool | None = None
+    default_save_path: str | None = None
+    default_save_path_template: str | None = None
+    default_search_query_template: str | None = None
+    default_preferred_resolution: str | None = None
+    default_preferred_subgroup: str | None = None
+    default_auto_query_from_synonyms: bool | None = None
 
 
 class AppConfigResponse(APIModel):
@@ -63,6 +69,12 @@ class AppConfigResponse(APIModel):
     qbittorrent_category: str = "anime"
     path_mappings: list[PathMapping] = Field(default_factory=list)
     auto_add_to_qbittorrent: bool = False
+    default_save_path: str | None = None
+    default_save_path_template: str | None = None
+    default_search_query_template: str | None = None
+    default_preferred_resolution: str | None = None
+    default_preferred_subgroup: str | None = None
+    default_auto_query_from_synonyms: bool = False
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

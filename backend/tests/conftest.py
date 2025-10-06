@@ -8,6 +8,9 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from app.core.bootstrap import build_container
+
+
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
@@ -21,9 +24,17 @@ async def client() -> AsyncIterator[AsyncClient]:
     """Async HTTP client for API testing."""
     from app.main import app
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+    container_manager = build_container()
+    container = await container_manager.__aenter__()
+    app.state.container = container
+
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
+    finally:
+        await container_manager.__aexit__(None, None, None)
+        app.state.container = None
 
 
 @pytest_asyncio.fixture

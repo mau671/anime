@@ -35,7 +35,7 @@ import type { AnimeEnvelope, SettingsEnvelope } from "@/lib/api-types"
 import {
   deleteAnimeSettings,
   updateAnimeSettings,
-  useSettings,
+  useAppConfig,
   useAnimeSettings,
 } from "@/lib/api-hooks"
 import { processPathTemplate } from "@/lib/path-template"
@@ -75,7 +75,7 @@ type Props = {
 export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props) {
   const [isDeleting, setIsDeleting] = React.useState(false)
   const anilistId = anime.anime.anilist_id ?? anime.anime.anilistId ?? 0
-  const { data: globalSettings } = useSettings()
+  const { data: appConfig } = useAppConfig()
   const { data: envelope } = useAnimeSettings(open ? anilistId : null)
   const [previewPath, setPreviewPath] = React.useState<string>("")
 
@@ -85,12 +85,15 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
       enabled: settings?.enabled ?? false,
       save_path: settings?.save_path ?? "",
       use_global_template: !settings?.save_path,
-      search_query: settings?.search_query ?? "",
+      search_query: settings?.search_query ?? appConfig?.default_search_query_template ?? "",
       includes: settings?.includes?.join("\n") ?? "",
       excludes: settings?.excludes?.join("\n") ?? "",
-      preferred_resolution: settings?.preferred_resolution ?? "",
-      preferred_subgroup: settings?.preferred_subgroup ?? "",
-      auto_query_from_synonyms: settings?.auto_query_from_synonyms ?? false,
+      preferred_resolution:
+        settings?.preferred_resolution ?? appConfig?.default_preferred_resolution ?? "",
+      preferred_subgroup:
+        settings?.preferred_subgroup ?? appConfig?.default_preferred_subgroup ?? "",
+      auto_query_from_synonyms:
+        settings?.auto_query_from_synonyms ?? appConfig?.default_auto_query_from_synonyms ?? false,
       tvdb_id: settings?.tvdb_id?.toString() ?? "",
       tvdb_season: settings?.tvdb_season?.toString() ?? "",
       tmdb_id: settings?.tmdb_id?.toString() ?? "",
@@ -101,30 +104,36 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
   React.useEffect(() => {
     form.reset({
       enabled: settings?.enabled ?? false,
-      save_path: settings?.save_path ?? "",
-      use_global_template: !settings?.save_path,
-      search_query: settings?.search_query ?? "",
+      save_path: settings?.save_path ?? appConfig?.default_save_path ?? "",
+      use_global_template: settings?.save_path
+        ? false
+        : Boolean(appConfig?.default_save_path_template),
+      search_query: settings?.search_query ?? appConfig?.default_search_query_template ?? "",
       includes: settings?.includes?.join("\n") ?? "",
       excludes: settings?.excludes?.join("\n") ?? "",
-      preferred_resolution: settings?.preferred_resolution ?? "",
-      preferred_subgroup: settings?.preferred_subgroup ?? "",
-      auto_query_from_synonyms: settings?.auto_query_from_synonyms ?? false,
+      preferred_resolution:
+        settings?.preferred_resolution ?? appConfig?.default_preferred_resolution ?? "",
+      preferred_subgroup:
+        settings?.preferred_subgroup ?? appConfig?.default_preferred_subgroup ?? "",
+      auto_query_from_synonyms:
+        settings?.auto_query_from_synonyms ?? appConfig?.default_auto_query_from_synonyms ?? false,
       tvdb_id: settings?.tvdb_id?.toString() ?? "",
       tvdb_season: settings?.tvdb_season?.toString() ?? "",
       tmdb_id: settings?.tmdb_id?.toString() ?? "",
       tmdb_season: settings?.tmdb_season?.toString() ?? "",
     })
-  }, [settings, form])
+  }, [settings, form, appConfig])
 
   // Calculate preview path when relevant values change
   const tvdbId = form.watch("tvdb_id")
   const tvdbSeason = form.watch("tvdb_season")
   const tmdbId = form.watch("tmdb_id")
   const tmdbSeason = form.watch("tmdb_season")
+  const useGlobalTemplate = form.watch("use_global_template")
 
   React.useEffect(() => {
-    const template = globalSettings?.[0]?.settings?.save_path_template
-    if (!template || !envelope) {
+    const template = appConfig?.default_save_path_template
+    if (!template || !envelope || !useGlobalTemplate) {
       setPreviewPath("")
       return
     }
@@ -147,7 +156,7 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
       console.error("Error processing template:", error)
       setPreviewPath("")
     }
-  }, [envelope, globalSettings, tvdbId, tvdbSeason, tmdbId, tmdbSeason])
+  }, [envelope, appConfig, tvdbId, tvdbSeason, tmdbId, tmdbSeason, useGlobalTemplate])
 
   const onSubmit = form.handleSubmit(async (values) => {
     const parseList = (value?: string) =>

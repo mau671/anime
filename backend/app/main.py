@@ -5,14 +5,14 @@ from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from bson import ObjectId
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.config import router as config_router
-from app.api.dependencies import get_container
+from app.api.dependencies import get_container, get_scheduler
 from app.api.schemas import (
     AnimeEnvelope,
     AnimeResource,
@@ -27,6 +27,7 @@ from app.api.schemas import (
     TorrentSeenRecord,
     TVDBMetadata,
 )
+from app.api.tasks import router as tasks_router
 from app.core.bootstrap import ServiceContainer, build_container
 from app.core.config import get_settings
 from app.core.utils import ensure_directory, sanitize_save_path, utc_now
@@ -184,6 +185,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             settings_repo=container.settings_repo,
             torrent_repo=container.torrent_repo,
             config_repo=container.config_repo,
+            task_history_repo=container.task_history_repo,
             anilist_client=container.anilist_client,
             nyaa_client=container.nyaa_client,
             downloader=container.downloader,
@@ -215,29 +217,26 @@ app.add_middleware(
 
 # Include API routers
 app.include_router(config_router)
-
-
-def get_scheduler(request: Request) -> SchedulerService:
-    scheduler: SchedulerService | None = getattr(request.app.state, "scheduler", None)
-    if scheduler is None:
-        raise HTTPException(status_code=503, detail="Scheduler not available")
-    return scheduler
+app.include_router(tasks_router)
 
 
 @app.get("/health", response_model=TaskStatusResponse)
-async def health(container: ServiceContainer = Depends(get_container)) -> TaskStatusResponse:
+async def health(
+    container: Annotated[ServiceContainer, Depends(get_container)]
+) -> TaskStatusResponse:
     await container.anime_repo.ensure_indexes()
     await container.settings_repo.ensure_indexes()
     await container.torrent_repo.ensure_indexes()
     await container.config_repo.ensure_indexes()
+    await container.task_history_repo.ensure_indexes()
     await container.mongo_client.admin.command("ping")
     return TaskStatusResponse(status="ok", detail="Service healthy")
 
 
 @app.get("/animes", response_model=list[AnimeEnvelope])
 async def list_animes(
+    container: Annotated[ServiceContainer, Depends(get_container)],
     limit: int = Query(50, ge=1, le=500),
-    container: ServiceContainer = Depends(get_container),
 ) -> list[AnimeEnvelope]:
     items = await container.anime_repo.all()
     limited = items[:limit]
@@ -246,7 +245,7 @@ async def list_animes(
 
 @app.get("/settings", response_model=list[SettingsEnvelope])
 async def list_settings(
-    container: ServiceContainer = Depends(get_container),
+    container: Annotated[ServiceContainer, Depends(get_container)],
 ) -> list[SettingsEnvelope]:
     entries = await container.settings_repo.list_all()
     anime_ids = [
@@ -264,8 +263,8 @@ async def list_settings(
 @app.get("/settings/{anilist_id}/downloads", response_model=list[TorrentSeenRecord])
 async def list_download_history(
     anilist_id: int,
+    container: Annotated[ServiceContainer, Depends(get_container)],
     limit: int = Query(50, ge=1, le=200),
-    container: ServiceContainer = Depends(get_container),
 ) -> list[TorrentSeenRecord]:
     entries = await container.torrent_repo.list_for_anilist(anilist_id, limit=limit)
     result: list[TorrentSeenRecord] = []
@@ -279,7 +278,7 @@ async def list_download_history(
 @app.get("/settings/{anilist_id}", response_model=SettingsEnvelope)
 async def get_settings_by_id(
     anilist_id: int,
-    container: ServiceContainer = Depends(get_container),
+    container: Annotated[ServiceContainer, Depends(get_container)],
 ) -> SettingsEnvelope:
     entry = await container.settings_repo.get(anilist_id)
     if not entry:
@@ -294,7 +293,7 @@ async def get_settings_by_id(
 async def update_settings(
     anilist_id: int,
     payload: SettingsUpdatePayload,
-    container: ServiceContainer = Depends(get_container),
+    container: Annotated[ServiceContainer, Depends(get_container)],
 ) -> SettingsEnvelope:
     is_global = anilist_id == 0
     existing_entry = await container.settings_repo.get(anilist_id)
@@ -376,7 +375,7 @@ async def update_settings(
 @app.delete("/settings/{anilist_id}", response_model=TaskStatusResponse)
 async def delete_settings(
     anilist_id: int,
-    container: ServiceContainer = Depends(get_container),
+    container: Annotated[ServiceContainer, Depends(get_container)],
 ) -> TaskStatusResponse:
     deleted = await container.settings_repo.delete(anilist_id)
     if not deleted:
@@ -385,7 +384,9 @@ async def delete_settings(
 
 
 @app.post("/tasks/init-db", response_model=TaskStatusResponse)
-async def init_db(container: ServiceContainer = Depends(get_container)) -> TaskStatusResponse:
+async def init_db(
+    container: Annotated[ServiceContainer, Depends(get_container)],
+) -> TaskStatusResponse:
     await container.anime_repo.ensure_indexes()
     await container.settings_repo.ensure_indexes()
     await container.torrent_repo.ensure_indexes()
@@ -395,15 +396,17 @@ async def init_db(container: ServiceContainer = Depends(get_container)) -> TaskS
 @app.post("/tasks/sync-anilist", response_model=SyncAnilistResponse)
 async def sync_anilist(
     payload: SyncAnilistRequest,
-    container: ServiceContainer = Depends(get_container),
+    container: Annotated[ServiceContainer, Depends(get_container)],
 ) -> SyncAnilistResponse:
     count = await sync_anilist_catalog(
         settings=container.settings,
         client=container.anilist_client,
         repository=container.anime_repo,
+        task_history_repo=container.task_history_repo,
         logger=container.logger,
         season=payload.season,
         season_year=payload.season_year,
+        trigger="manual",
     )
     season_used = (payload.season or container.settings.api.season).upper()
     year_used = payload.season_year or container.settings.api.season_year or utc_now().year
@@ -417,7 +420,7 @@ async def sync_anilist(
 
 @app.post("/tasks/scan-nyaa", response_model=ScanNyaaResponse)
 async def trigger_scan(
-    container: ServiceContainer = Depends(get_container),
+    container: Annotated[ServiceContainer, Depends(get_container)],
 ) -> ScanNyaaResponse:
     await scan_nyaa_sources(
         settings=container.settings,
@@ -425,18 +428,20 @@ async def trigger_scan(
         settings_repo=container.settings_repo,
         torrent_repo=container.torrent_repo,
         config_repo=container.config_repo,
+        task_history_repo=container.task_history_repo,
         nyaa_client=container.nyaa_client,
         downloader=container.downloader,
         tvdb_client=container.tvdb_client,
         tmdb_client=container.tmdb_client,
         logger=container.logger,
+        trigger="manual",
     )
     return ScanNyaaResponse(status="completed")
 
 
 @app.post("/scheduler/reload", response_model=TaskStatusResponse)
 async def reload_scheduler(
-    scheduler: SchedulerService = Depends(get_scheduler),
+    scheduler: Annotated[SchedulerService, Depends(get_scheduler)],
 ) -> TaskStatusResponse:
     await scheduler.shutdown()
     await scheduler.start()

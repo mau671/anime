@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import datetime
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument
@@ -10,6 +11,7 @@ from app.db.models import (
     AnimeDocument,
     AnimeSettingsDocument,
     AppConfigDocument,
+    TaskHistoryDocument,
     TorrentSeenDocument,
 )
 
@@ -139,3 +141,95 @@ class AppConfigRepository:
             upsert=True,
             return_document=ReturnDocument.AFTER,
         )
+
+
+class TaskHistoryRepository:
+    """Repository for task execution history."""
+
+    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+        self._collection = db["task_history"]
+
+    async def ensure_indexes(self) -> None:
+        await self._collection.create_index("task_id", unique=True)
+        await self._collection.create_index("task_type")
+        await self._collection.create_index("status")
+        await self._collection.create_index("trigger")
+        await self._collection.create_index("started_at")
+        await self._collection.create_index("anilist_id", sparse=True)
+        # Compound index for efficient queries
+        await self._collection.create_index([("task_type", 1), ("started_at", -1)])
+
+    async def create(self, document: TaskHistoryDocument) -> dict:
+        """Create a new task history record."""
+        doc = document.to_mongo_dict()
+        result = await self._collection.insert_one(doc)
+        doc["_id"] = result.inserted_id
+        return doc
+
+    async def update(self, task_id: str, updates: dict) -> dict | None:
+        """Update a task history record."""
+        updates["updated_at"] = utc_now()
+        return await self._collection.find_one_and_update(
+            {"task_id": task_id},
+            {"$set": updates},
+            return_document=ReturnDocument.AFTER,
+        )
+
+    async def get_by_id(self, task_id: str) -> dict | None:
+        """Get a task by its ID."""
+        return await self._collection.find_one({"task_id": task_id})
+
+    async def list_recent(
+        self,
+        limit: int = 50,
+        task_type: str | None = None,
+        status: str | None = None,
+        anilist_id: int | None = None,
+    ) -> list[dict]:
+        """List recent tasks with optional filters."""
+        query = {}
+        if task_type:
+            query["task_type"] = task_type
+        if status:
+            query["status"] = status
+        if anilist_id is not None:
+            query["anilist_id"] = anilist_id
+
+        cursor = self._collection.find(query).sort("started_at", -1).limit(limit)
+        return [doc async for doc in cursor]
+
+    async def get_running_tasks(self) -> list[dict]:
+        """Get all currently running tasks."""
+        cursor = self._collection.find({"status": "running"}).sort("started_at", -1)
+        return [doc async for doc in cursor]
+
+    async def get_statistics(
+        self,
+        task_type: str | None = None,
+        since: datetime | None = None,
+    ) -> dict:
+        """Get statistics for tasks."""
+        match_stage = {}
+        if task_type:
+            match_stage["task_type"] = task_type
+        if since:
+            match_stage["started_at"] = {"$gte": since}
+
+        pipeline = []
+        if match_stage:
+            pipeline.append({"$match": match_stage})
+
+        pipeline.append(
+            {
+                "$group": {
+                    "_id": "$status",
+                    "count": {"$sum": 1},
+                    "total_processed": {"$sum": "$items_processed"},
+                    "total_succeeded": {"$sum": "$items_succeeded"},
+                    "total_failed": {"$sum": "$items_failed"},
+                }
+            }
+        )
+
+        result = await self._collection.aggregate(pipeline).to_list(length=None)
+        return {item["_id"]: item for item in result}

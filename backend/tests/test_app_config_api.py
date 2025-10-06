@@ -122,3 +122,29 @@ async def test_path_mappings_conversion(client: AsyncClient):
     assert data["path_mappings"][0]["to"] == "/data"
     assert data["path_mappings"][1]["from"] == "/storage/media"
     assert data["path_mappings"][1]["to"] == "/media"
+
+
+@pytest.mark.asyncio
+async def test_default_settings_fields_persist(
+    client: AsyncClient, config_repo: AppConfigRepository
+):
+    payload = {
+        "default_save_path": "/storage/data/torrents",
+        "default_save_path_template": "/storage/data/torrents/{anime.title.romaji}",
+        "default_search_query_template": "{anime.title.romaji} {currentYear}",
+        "default_preferred_resolution": "1080P",
+        "default_preferred_subgroup": "SubsPlease",
+        "default_auto_query_from_synonyms": True,
+    }
+
+    response = await client.put("/config/", json=payload)
+    assert response.status_code == 200
+
+    data = response.json()
+    for key, value in payload.items():
+        assert data[key] == value
+
+    saved = await config_repo.get()
+    assert saved is not None
+    for key, value in payload.items():
+        assert saved[key] == value

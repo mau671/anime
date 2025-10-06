@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import httpx
 from structlog.stdlib import BoundLogger
 
@@ -102,19 +103,23 @@ class QBittorrentClient:
         cat = category or self._category
 
         try:
-            with open(torrent_path, "rb") as f:
-                files = {"torrents": (torrent_path.name, f, "application/x-bittorrent")}
-                data = {
-                    "category": cat,
-                    "savepath": save_path.as_posix(),
-                    "autoTMM": "false",  # Disable automatic torrent management
-                }
+            async with aiofiles.open(torrent_path, "rb") as f:
+                file_data = await f.read()
 
-                response = await self._client.post(
-                    f"{self._url}/api/v2/torrents/add",
-                    data=data,
-                    files=files,
-                )
+            files = {
+                "torrents": (torrent_path.name, file_data, "application/x-bittorrent")
+            }
+            data = {
+                "category": cat,
+                "savepath": save_path.as_posix(),
+                "autoTMM": "false",  # Disable automatic torrent management
+            }
+
+            response = await self._client.post(
+                f"{self._url}/api/v2/torrents/add",
+                data=data,
+                files=files,
+            )
 
             if response.status_code == 200:
                 body = response.text.strip()

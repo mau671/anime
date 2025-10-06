@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -83,8 +84,48 @@ class AppConfigDocument(MongoModel):
     path_mappings: list[dict[str, str]] = Field(default_factory=list)
     # Example: [{"from": "/storage/data/torrents", "to": "/data/torrents"}]
 
+    # Default anime settings
+    default_save_path: str | None = None
+    default_save_path_template: str | None = None
+    default_search_query_template: str | None = None
+    default_preferred_resolution: str | None = None
+    default_preferred_subgroup: str | None = None
+    default_auto_query_from_synonyms: bool = False
+
     # Other app settings
     auto_add_to_qbittorrent: bool = False
+
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime | None = None
+
+
+class TaskHistoryDocument(MongoModel):
+    """
+    History of all tasks executed by the system.
+    Tracks scans, syncs, and other operations.
+    """
+
+    task_id: str  # Unique identifier for the task
+    task_type: str  # "scan_nyaa", "sync_anilist", "manual_scan", etc.
+    status: str  # "pending", "running", "completed", "failed", "cancelled"
+    trigger: str  # "manual", "scheduled", "api"
+
+    # Timestamps
+    started_at: datetime = Field(default_factory=utc_now)
+    completed_at: datetime | None = None
+
+    # Task details
+    parameters: dict[str, Any] = Field(default_factory=dict)  # Input parameters
+    result: dict[str, Any] = Field(default_factory=dict)  # Result data
+    error: str | None = None  # Error message if failed
+
+    # Statistics
+    items_processed: int = 0
+    items_succeeded: int = 0
+    items_failed: int = 0
+
+    # Related entities
+    anilist_id: int | None = None  # For anime-specific tasks
 
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime | None = None

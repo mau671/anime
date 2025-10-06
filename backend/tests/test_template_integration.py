@@ -154,7 +154,11 @@ async def test_template_rendering_with_real_apis():
             print("\n⚠️  TVDB metadata not available in context")
 
         # Test template rendering
-        template = "/storage/data/torrents/shows/Anime Ongoing/{currentYear}/{anime.season}/{tvdb.name} ({tvdb.year}) [tvdbid-{tvdb.id}]/Season {tvdb.seasonNumber}"
+        template = (
+            "/storage/data/torrents/shows/Anime Ongoing/"
+            "{currentYear}/{anime.season}/"
+            "{tvdb.name} ({tvdb.year}) [tvdbid-{tvdb.id}]/Season {tvdb.seasonNumber}"
+        )
         rendered = render_save_path_template(template, context)
 
         print(f"\n📝 Template: {template}")
@@ -231,7 +235,10 @@ async def test_template_rendering_without_apis():
     assert "tmdb" not in context  # Should not be present if client is disabled
 
     # Test simple template that doesn't require external APIs
-    template = "/storage/data/torrents/shows/Anime Ongoing/{currentYear}/{anime.season}/{anime.title.romaji}"
+    template = (
+        "/storage/data/torrents/shows/Anime Ongoing/"
+        "{currentYear}/{anime.season}/{anime.title.romaji}"
+    )
     rendered = render_save_path_template(template, context)
 
     print(f"\n📝 Template (no APIs): {template}")

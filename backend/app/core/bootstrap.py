@@ -18,6 +18,7 @@ from app.db.repositories import (
     AnimeRepository,
     AnimeSettingsRepository,
     AppConfigRepository,
+    TaskHistoryRepository,
     TorrentSeenRepository,
 )
 from app.downloader.torrent_downloader import TorrentDownloader
@@ -37,6 +38,7 @@ class ServiceContainer:
     settings_repo: AnimeSettingsRepository
     torrent_repo: TorrentSeenRepository
     config_repo: AppConfigRepository
+    task_history_repo: TaskHistoryRepository
     anilist_client: AniListClient
     nyaa_client: NyaaClient
     downloader: TorrentDownloader
@@ -108,6 +110,7 @@ async def build_container() -> AsyncIterator[ServiceContainer]:
             settings_repo=AnimeSettingsRepository(db),
             torrent_repo=TorrentSeenRepository(db),
             config_repo=AppConfigRepository(db),
+            task_history_repo=TaskHistoryRepository(db),
             anilist_client=anilist_client,
             nyaa_client=nyaa_client,
             downloader=downloader,

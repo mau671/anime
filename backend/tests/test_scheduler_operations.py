@@ -88,6 +88,24 @@ class FakeConfigRepo:
         }
 
 
+class FakeTaskHistoryRepo:
+    """Stub task history repository for testing."""
+
+    def __init__(self) -> None:
+        self.created: list[dict] = []
+        self.updated: list[tuple[str, dict]] = []
+
+    async def create(self, document) -> dict:
+        doc = document.model_dump() if hasattr(document, "model_dump") else dict(document)
+        self.created.append(doc)
+        doc["_id"] = len(self.created)
+        return doc
+
+    async def update(self, task_id: str, updates: dict) -> dict:
+        self.updated.append((task_id, updates))
+        return {"task_id": task_id, **updates}
+
+
 @pytest.mark.asyncio
 async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
     items = [
@@ -139,6 +157,7 @@ async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
     nyaa_client = FakeNyaaClient(items)
     tvdb_client = FakeTVDBClient()
     tmdb_client = FakeTMDBClient()
+    task_history_repo = FakeTaskHistoryRepo()
 
     await scan_nyaa_sources(
         settings=settings,
@@ -146,6 +165,7 @@ async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
         settings_repo=settings_repo,
         torrent_repo=torrent_repo,
         config_repo=FakeConfigRepo(),
+        task_history_repo=task_history_repo,
         nyaa_client=nyaa_client,
         downloader=downloader,
         tvdb_client=tvdb_client,
@@ -155,3 +175,11 @@ async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
 
     assert len(downloader.downloads) == 1
     assert (1, items[0].infohash) in torrent_repo.seen
+    assert task_history_repo.created
+    # Ensure task was marked completed with stats
+    created = task_history_repo.created[0]
+    assert created["status"] == "running"
+    assert task_history_repo.updated
+    updated_task_id, updates = task_history_repo.updated[-1]
+    assert updates["status"] == "completed"
+    assert updates["items_succeeded"] >= 1

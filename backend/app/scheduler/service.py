@@ -10,6 +10,7 @@ from app.db.repositories import (
     AnimeRepository,
     AnimeSettingsRepository,
     AppConfigRepository,
+    TaskHistoryRepository,
     TorrentSeenRepository,
 )
 from app.downloader.torrent_downloader import TorrentDownloader
@@ -29,6 +30,7 @@ class SchedulerService:
         settings_repo: AnimeSettingsRepository,
         torrent_repo: TorrentSeenRepository,
         config_repo: AppConfigRepository,
+        task_history_repo: TaskHistoryRepository,
         anilist_client: AniListClient,
         nyaa_client: NyaaClient,
         downloader: TorrentDownloader,
@@ -42,6 +44,7 @@ class SchedulerService:
         self._settings_repo = settings_repo
         self._torrent_repo = torrent_repo
         self._config_repo = config_repo
+        self._task_history_repo = task_history_repo
         self._anilist_client = anilist_client
         self._nyaa_client = nyaa_client
         self._downloader = downloader
@@ -94,6 +97,7 @@ class SchedulerService:
             settings=self._settings,
             client=self._anilist_client,
             repository=self._anime_repo,
+            task_history_repo=self._task_history_repo,
             logger=self._logger.bind(job="sync_anilist"),
         )
 
@@ -104,6 +108,7 @@ class SchedulerService:
             settings_repo=self._settings_repo,
             torrent_repo=self._torrent_repo,
             config_repo=self._config_repo,
+            task_history_repo=self._task_history_repo,
             nyaa_client=self._nyaa_client,
             downloader=self._downloader,
             tvdb_client=self._tvdb_client,
