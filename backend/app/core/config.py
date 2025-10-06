@@ -46,13 +46,13 @@ class MetricsSettings(BaseModel):
 
 class TVDBSettings(BaseModel):
     base_url: HttpUrl = Field(default="https://api4.thetvdb.com/v4")
-    api_key: str | None = Field(default=None, validation_alias="TVDB_API_KEY")
+    api_key: str | None = None
     language: str = Field(default="eng")
 
 
 class TMDBSettings(BaseModel):
     base_url: HttpUrl = Field(default="https://api.themoviedb.org/3")
-    api_key: str | None = Field(default=None, validation_alias="TMDB_API_KEY")
+    api_key: str | None = None
     language: str = Field(default="en-US")
 
 
@@ -83,6 +83,10 @@ class ServiceSettings(BaseSettings):
     )
 
     create_missing_save_dirs: bool = Field(default=True)
+    
+    # Read API keys directly from environment
+    tvdb_api_key: str | None = Field(default=None, validation_alias="TVDB_API_KEY")
+    tmdb_api_key: str | None = Field(default=None, validation_alias="TMDB_API_KEY")
 
     @model_validator(mode="after")
     def _populate_mongo(self) -> ServiceSettings:
@@ -92,6 +96,15 @@ class ServiceSettings(BaseSettings):
                 db_name=self.mongo_db_name,
                 tls_ca_file=self.mongo_tls_ca_file,
             )
+        return self
+    
+    @model_validator(mode="after")
+    def _populate_api_keys(self) -> ServiceSettings:
+        """Populate nested settings with API keys from environment."""
+        if self.tvdb_api_key:
+            self.tvdb.api_key = self.tvdb_api_key
+        if self.tmdb_api_key:
+            self.tmdb.api_key = self.tmdb_api_key
         return self
 
 
