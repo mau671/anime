@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { mutate } from "swr"
+import { toast } from "sonner"
 
 import { PageShell } from "@/components/page-shell"
 import { Badge } from "@/components/ui/badge"
@@ -53,10 +55,28 @@ function ActionsCard({ onJobTriggered }: ActionsCardProps) {
 
     try {
       setWorkingKey(key)
+      toast.info(`Iniciando: ${key}`, {
+        description: "La tarea se está enviando al servidor...",
+      })
+      
       const result = await action()
+      
+      if (result.status === "ok" || result.status === "queued" || result.status === "completed") {
+        toast.success(`Tarea iniciada: ${key}`, {
+          description: result.detail || `ID de tarea: ${result.task_id}`,
+        })
+      } else {
+        toast.error(`Error al iniciar: ${key}`, {
+          description: result.detail || "La tarea no pudo iniciarse",
+        })
+      }
+      
       onJobTriggered?.(key, result)
     } catch (error) {
       console.error(error)
+      toast.error(`Error al ejecutar: ${key}`, {
+        description: error instanceof Error ? error.message : "Error desconocido",
+      })
       onJobTriggered?.(key, {
         status: "failed",
         detail: "La solicitud falló",
@@ -289,13 +309,35 @@ export default function TasksPage() {
   const {
     data: historyData,
     isLoading: historyLoading,
+    mutate: mutateHistory,
   } = useJobHistory({ limit: 25 })
+
+  const { data: runningJobs } = useRunningJobs()
+
+  // Auto-refresh cuando hay jobs en ejecución
+  React.useEffect(() => {
+    if (!runningJobs || runningJobs.length === 0) return
+
+    const interval = setInterval(() => {
+      // Refrescar todos los datos
+      mutateHistory()
+      mutate((key) => Array.isArray(key) && key[0] === "running-jobs")
+      mutate((key) => Array.isArray(key) && key[0] === "job-stats")
+    }, 3000) // Poll cada 3 segundos
+
+    return () => clearInterval(interval)
+  }, [runningJobs, mutateHistory])
 
   const handleJobTriggered = React.useCallback(
     async () => {
-      // Las mutaciones relevantes se disparan desde runJob
+      // Forzar actualización inmediata de los datos
+      setTimeout(() => {
+        mutateHistory()
+        mutate((key) => Array.isArray(key) && key[0] === "running-jobs")
+        mutate((key) => Array.isArray(key) && key[0] === "job-stats")
+      }, 500)
     },
-    []
+    [mutateHistory]
   )
 
   return (
