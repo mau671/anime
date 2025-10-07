@@ -16,7 +16,7 @@ class MongoModel(BaseModel):
 
 
 class AnimeDocument(MongoModel):
-    anilist_id: int = Field(alias="anilist_id")
+    anilist_id: int
     title: dict[str, str | None]
     format: str | None = None
     season: str | None = None

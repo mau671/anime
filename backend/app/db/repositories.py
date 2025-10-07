@@ -29,7 +29,7 @@ class AnimeRepository:
     async def upsert_many(self, documents: Iterable[AnimeDocument]) -> int:
         count = 0
         for doc in documents:
-            payload = doc.model_dump(by_alias=True, exclude_none=True)
+            payload = doc.model_dump(exclude_none=True)
             payload["updated_at"] = utc_now()
             await self._collection.update_one(
                 {"anilist_id": doc.anilist_id},
