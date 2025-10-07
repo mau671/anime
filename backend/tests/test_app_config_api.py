@@ -16,7 +16,6 @@ async def test_get_app_config_empty(client: AsyncClient, config_repo: AppConfigR
     assert response.status_code == 200
 
     data = response.json()
-    assert data["auto_add_to_qbittorrent"] is False
     assert data["qbittorrent_category"] == "anime"
 
 

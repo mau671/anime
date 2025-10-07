@@ -59,6 +59,10 @@ class TorrentSeenDocument(MongoModel):
     infohash: str
     published_at: datetime | None = None
     seen_at: datetime = Field(default_factory=utc_now)
+    save_path: str | None = None
+    torrent_path: str | None = None
+    exported_to_qbittorrent: bool = False
+    exported_at: datetime | None = None
 
 
 class AppConfigDocument(MongoModel):
@@ -129,5 +133,19 @@ class TaskHistoryDocument(MongoModel):
     # Related entities
     anilist_id: int | None = None  # For anime-specific tasks
 
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime | None = None
+
+
+class QBittorrentHistoryDocument(MongoModel):
+    """History of torrents exported to qBittorrent."""
+
+    anilist_id: int
+    title: str
+    torrent_path: str
+    save_path: str
+    category: str | None = None
+    infohash: str | None = None
+    qbittorrent_response: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime | None = None

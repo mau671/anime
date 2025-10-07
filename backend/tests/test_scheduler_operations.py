@@ -28,7 +28,7 @@ class FakeSettingsRepo:
 
 class FakeTorrentRepo:
     def __init__(self) -> None:
-        self.seen: set[tuple[int, str]] = set()
+        self.seen: dict[tuple[int, str], dict] = {}
 
     async def exists(self, anilist_id: int, infohash: str | None, link: str) -> bool:
         key = (anilist_id, infohash or link)
@@ -36,8 +36,9 @@ class FakeTorrentRepo:
 
     async def mark_seen(self, document) -> dict:
         key = (document.anilist_id, document.infohash or document.link)
-        self.seen.add(key)
-        return {"ok": 1}
+        payload = document.model_dump() if hasattr(document, "model_dump") else dict(document)
+        self.seen[key] = payload
+        return payload
 
 
 class FakeNyaaClient:
@@ -109,6 +110,19 @@ class FakeTaskHistoryRepo:
         return {"task_id": task_id, **updates}
 
 
+class FakeQBittorrentHistoryRepo:
+    def __init__(self) -> None:
+        self.records: list[dict] = []
+
+    async def record(self, document) -> dict:
+        doc = document.model_dump() if hasattr(document, "model_dump") else dict(document)
+        self.records.append(doc)
+        return doc
+
+    async def list_by_anilist(self, anilist_id: int, limit: int = 50) -> list[dict]:
+        return [doc for doc in self.records if doc.get("anilist_id") == anilist_id][:limit]
+
+
 @pytest.mark.asyncio
 async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
     items = [
@@ -161,6 +175,7 @@ async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
     tvdb_client = FakeTVDBClient()
     tmdb_client = FakeTMDBClient()
     task_history_repo = FakeTaskHistoryRepo()
+    qbittorrent_history_repo = FakeQBittorrentHistoryRepo()
 
     await scan_nyaa_sources(
         settings=settings,
@@ -169,6 +184,7 @@ async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
         torrent_repo=torrent_repo,
         config_repo=FakeConfigRepo(),
         task_history_repo=task_history_repo,
+        qbittorrent_history_repo=qbittorrent_history_repo,
         nyaa_client=nyaa_client,
         downloader=downloader,
         tvdb_client=tvdb_client,
@@ -179,6 +195,7 @@ async def test_scan_nyaa_sources_downloads_once(tmp_path: Path) -> None:
     assert len(downloader.downloads) == 1
     assert (1, items[0].infohash) in torrent_repo.seen
     assert task_history_repo.created
+    assert qbittorrent_history_repo.records == []
     # Ensure task was marked completed with stats
     created = task_history_repo.created[0]
     assert created["status"] == "running"

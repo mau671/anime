@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 
@@ -212,3 +212,185 @@ class TorrentSeenRecord(APIModel):
     infohash: str | None = None
     saved_at: datetime | None = None
     published_at: datetime | None = None
+
+
+class TaskHistoryResource(APIModel):
+    id: str | None = None
+    task_id: str
+    task_type: str
+    status: str
+    trigger: str
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    result: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+    items_processed: int = 0
+    items_succeeded: int = 0
+    items_failed: int = 0
+    anilist_id: int | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class TaskHistoryFilters(APIModel):
+    task_type: str | None = None
+    status: str | None = None
+    anilist_id: int | None = None
+
+
+class TaskHistoryListResponse(APIModel):
+    tasks: list[TaskHistoryResource]
+    count: int
+    limit: int
+    filters: TaskHistoryFilters
+
+
+class TaskRunningListResponse(APIModel):
+    tasks: list[TaskHistoryResource]
+    count: int
+
+
+class TaskStatusAggregate(APIModel):
+    status: str
+    count: int = 0
+    total_processed: int = 0
+    total_succeeded: int = 0
+    total_failed: int = 0
+
+
+class TaskStatisticsResponse(APIModel):
+    period: Literal["24h", "7d", "30d", "all"]
+    task_type: str | None = None
+    statistics: list[TaskStatusAggregate]
+
+
+class JobTypeInfo(APIModel):
+    type: str
+    description: str
+    trigger_types: list[str]
+
+
+class JobTypeListResponse(APIModel):
+    job_types: list[JobTypeInfo]
+
+
+class QBittorrentHistoryRecord(APIModel):
+    id: str | None = None
+    anilist_id: int
+    title: str
+    torrent_path: str
+    save_path: str
+    category: str | None = None
+    infohash: str | None = None
+    qbittorrent_response: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class QBittorrentHistoryListResponse(APIModel):
+    anilist_id: int
+    count: int
+    records: list[QBittorrentHistoryRecord]
+    limit: int
+
+
+class JobTrigger(APIModel):
+    id: str
+    type: str
+    next_run_time: datetime | None = None
+
+
+class JobDetail(APIModel):
+    id: str
+    name: str | None = None
+    func: str | None = None
+    triggers: list[JobTrigger] = Field(default_factory=list)
+    coalesce: bool | None = None
+    misfire_grace_time: int | None = None
+    max_instances: int | None = None
+
+
+class JobListResponse(APIModel):
+    jobs: list[JobDetail]
+    count: int
+
+
+class TorrentExportResult(APIModel):
+    exported: int
+    skipped: int
+    failed: int
+
+
+class TorrentExportResponse(TaskStatusResponse):
+    result: TorrentExportResult
+
+
+class ScanNyaaJob(APIModel):
+    job_type: Literal["scan_nyaa"] = "scan_nyaa"
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "job_type": "scan_nyaa",
+            }
+        }
+    )
+
+
+class SyncAnilistJob(APIModel):
+    job_type: Literal["sync_anilist"] = "sync_anilist"
+    season: Literal["WINTER", "SPRING", "SUMMER", "FALL"] | None = None
+    season_year: PositiveInt | None = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "job_type": "sync_anilist",
+                "season": "WINTER",
+                "season_year": 2025,
+            }
+        }
+    )
+
+
+class InitDbJob(APIModel):
+    job_type: Literal["init_db"] = "init_db"
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "job_type": "init_db",
+            }
+        }
+    )
+
+
+class ExportQbittorrentJob(APIModel):
+    job_type: Literal["export_qbittorrent"] = "export_qbittorrent"
+    limit: PositiveInt = Field(default=50, le=200)
+    anilist_id: PositiveInt | None = None
+    items: list[str] = Field(
+        default_factory=list,
+        description="Explicit torrent paths or identifiers to export when available.",
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "job_type": "export_qbittorrent",
+                "limit": 25,
+                "anilist_id": 12345,
+                "items": [
+                    "/storage/downloads/anime/episode1.torrent",
+                ],
+            }
+        }
+    )
+
+
+class JobExecutionResponse(TaskStatusResponse):
+    task_id: str
+    result: dict[str, Any] | None = None
+
+

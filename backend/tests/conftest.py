@@ -6,10 +6,8 @@ from pathlib import Path
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.core.bootstrap import build_container
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"

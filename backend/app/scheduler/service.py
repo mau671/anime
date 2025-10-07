@@ -10,6 +10,7 @@ from app.db.repositories import (
     AnimeRepository,
     AnimeSettingsRepository,
     AppConfigRepository,
+    QBittorrentHistoryRepository,
     TaskHistoryRepository,
     TorrentSeenRepository,
 )
@@ -31,6 +32,7 @@ class SchedulerService:
         torrent_repo: TorrentSeenRepository,
         config_repo: AppConfigRepository,
         task_history_repo: TaskHistoryRepository,
+        qbittorrent_history_repo: QBittorrentHistoryRepository,
         anilist_client: AniListClient,
         nyaa_client: NyaaClient,
         downloader: TorrentDownloader,
@@ -45,6 +47,7 @@ class SchedulerService:
         self._torrent_repo = torrent_repo
         self._config_repo = config_repo
         self._task_history_repo = task_history_repo
+        self._qbittorrent_history_repo = qbittorrent_history_repo
         self._anilist_client = anilist_client
         self._nyaa_client = nyaa_client
         self._downloader = downloader
@@ -109,6 +112,7 @@ class SchedulerService:
             torrent_repo=self._torrent_repo,
             config_repo=self._config_repo,
             task_history_repo=self._task_history_repo,
+            qbittorrent_history_repo=self._qbittorrent_history_repo,
             nyaa_client=self._nyaa_client,
             downloader=self._downloader,
             tvdb_client=self._tvdb_client,

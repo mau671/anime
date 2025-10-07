@@ -7,16 +7,21 @@ import type {
   AnimeEnvelope,
   AppConfig,
   AppConfigPayload,
+  ExportQbittorrentJob,
+  InitDbJob,
+  JobExecutionResponse,
+  JobHistoryEntry,
+  JobHistoryFilters,
+  JobHistoryListResponse,
+  JobRunPayload,
+  JobStatisticsResponse,
+  JobTypeListResponse,
+  RunningJobsResponse,
+  ScanNyaaJob,
   SettingsEnvelope,
   SettingsUpdatePayload,
-  SyncAnilistRequest,
-  SyncAnilistResponse,
-  RunningTasksResponse,
-  TaskHistoryEntry,
-  TaskHistoryResponse,
-  TaskStatisticsResponse,
+  SyncAnilistJob,
   TaskStatusResponse,
-  TaskTypesResponse,
   TorrentSeenRecord,
 } from "@/lib/api-types"
 
@@ -30,22 +35,16 @@ const CACHE_KEYS = {
     limit ?? 50,
   ],
   appConfig: () => ["app-config"],
-  taskHistory: (filters?: TaskHistoryFilters) => ["task-history", filters ?? {}],
-  runningTasks: () => ["task-running"],
-  taskStatistics: (filters?: TaskStatisticsFilters) => ["task-stats", filters ?? {}],
-  taskTypes: () => ["task-types"],
-} as const
-
-type TaskHistoryFilters = {
-  limit?: number
-  task_type?: string | null
-  status?: string | null
-  anilist_id?: number | null
-}
-
-type TaskStatisticsFilters = {
-  task_type?: string | null
-  period?: "24h" | "7d" | "30d" | "all"
+  jobHistory: (filters?: JobHistoryFilters & { limit?: number }) => [
+    "job-history",
+    filters ?? {},
+  ],
+  runningJobs: () => ["running-jobs"],
+  jobStatistics: (filters?: { job_type?: string | null; period?: "24h" | "7d" | "30d" | "all" }) => [
+    "job-stats",
+    filters ?? {},
+  ],
+  jobTypes: () => ["job-types"],
 }
 
 export function useAnimes(limit = 50) {
@@ -125,27 +124,8 @@ export async function deleteAnimeSettings(anilistId: number) {
   return data
 }
 
-export async function triggerScan() {
-  return apiFetch<TaskStatusResponse>("/tasks/scan-nyaa", {
-    method: "POST",
-  })
-}
-
 export async function reloadScheduler() {
   return apiFetch<TaskStatusResponse>("/scheduler/reload", {
-    method: "POST",
-  })
-}
-
-export async function syncAnilist(payload: SyncAnilistRequest) {
-  return apiFetch<SyncAnilistResponse>("/tasks/sync-anilist", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  })
-}
-
-export async function initDatabase() {
-  return apiFetch<TaskStatusResponse>("/tasks/init-db", {
     method: "POST",
   })
 }
@@ -180,75 +160,91 @@ export async function testQbittorrentConnection() {
   })
 }
 
-export function useTaskHistory(filters?: TaskHistoryFilters) {
-  return useSWR(CACHE_KEYS.taskHistory(filters), async () => {
+export function useJobHistory(filters?: JobHistoryFilters & { limit?: number }) {
+  return useSWR(CACHE_KEYS.jobHistory(filters), async () => {
     const params = new URLSearchParams()
     if (filters?.limit) params.set("limit", filters.limit.toString())
-    if (filters?.task_type) params.set("task_type", filters.task_type)
+    if (filters?.job_type) params.set("job_type", filters.job_type)
     if (filters?.status) params.set("status", filters.status)
     if (typeof filters?.anilist_id === "number") {
       params.set("anilist_id", filters.anilist_id.toString())
     }
 
     const query = params.toString()
-    const data = await apiFetch<TaskHistoryResponse>(
-      query ? `/tasks/history/?${query}` : "/tasks/history/"
+    const data = await apiFetch<JobHistoryListResponse>(
+      query ? `/jobs/history?${query}` : "/jobs/history"
     )
 
-    const items =
-      data.items ?? data.results ?? data.data ?? (Array.isArray(data) ? data : [])
-
-    return { ...data, items } as TaskHistoryResponse & { items: TaskHistoryEntry[] }
-  })
-}
-
-export function useRunningTasks() {
-  return useSWR(CACHE_KEYS.runningTasks(), async () => {
-    const data = await apiFetch<RunningTasksResponse | TaskHistoryEntry[]>(
-      "/tasks/history/running/list"
-    )
-
-    if (Array.isArray(data)) {
-      return data
+    return {
+      ...data,
+      tasks: data.tasks ?? [],
     }
-
-    return data.items ?? data.data ?? []
   })
 }
 
-export function useTaskStatistics(filters?: TaskStatisticsFilters) {
-  return useSWR(CACHE_KEYS.taskStatistics(filters), async () => {
+export function useRunningJobs() {
+  return useSWR(CACHE_KEYS.runningJobs(), async () => {
+    const data = await apiFetch<RunningJobsResponse>("/jobs/history/running")
+    return data.tasks ?? []
+  })
+}
+
+export function useJobStatistics(filters?: { job_type?: string | null; period?: "24h" | "7d" | "30d" | "all" }) {
+  return useSWR(CACHE_KEYS.jobStatistics(filters), async () => {
     const params = new URLSearchParams()
-    if (filters?.task_type) params.set("task_type", filters.task_type)
+    if (filters?.job_type) params.set("job_type", filters.job_type)
     if (filters?.period) params.set("period", filters.period)
 
     const query = params.toString()
-    const data = await apiFetch<TaskStatisticsResponse>(
-      query
-        ? `/tasks/history/statistics/summary?${query}`
-        : "/tasks/history/statistics/summary"
+    const data = await apiFetch<JobStatisticsResponse>(
+      query ? `/jobs/history/statistics/summary?${query}` : "/jobs/history/statistics/summary"
     )
-
     return data
   })
 }
 
-export function useTaskTypes() {
-  return useSWR(CACHE_KEYS.taskTypes(), async () => {
-    const data = await apiFetch<TaskTypesResponse>("/tasks/history/types/list")
-
-    if (Array.isArray(data)) {
-      return data
-    }
-
-    return data.items ?? []
+export function useJobTypes() {
+  return useSWR(CACHE_KEYS.jobTypes(), async () => {
+    const data = await apiFetch<JobTypeListResponse>("/jobs/types")
+    return data.job_types ?? []
   })
 }
 
-export function useTaskDetails(taskId: string | null) {
-  return useSWR(taskId ? ["task-details", taskId] : null, async () => {
+export async function runJob(payload: JobRunPayload) {
+  const data = await apiFetch<JobExecutionResponse>("/jobs/run", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+
+  await Promise.all([
+    mutate(CACHE_KEYS.jobHistory()),
+    mutate(CACHE_KEYS.runningJobs()),
+    mutate(CACHE_KEYS.jobStatistics()),
+  ])
+
+  return data
+}
+
+export async function runScanNyaaJob() {
+  return runJob({ job_type: "scan_nyaa" } satisfies ScanNyaaJob)
+}
+
+export async function runInitDbJob() {
+  return runJob({ job_type: "init_db" } satisfies InitDbJob)
+}
+
+export async function runSyncAnilistJob(payload: Omit<SyncAnilistJob, "job_type"> = {}) {
+  return runJob({ job_type: "sync_anilist", ...payload } satisfies SyncAnilistJob)
+}
+
+export async function runExportQbittorrentJob(payload: Omit<ExportQbittorrentJob, "job_type">) {
+  return runJob({ job_type: "export_qbittorrent", ...payload } satisfies ExportQbittorrentJob)
+}
+
+export function useJobDetails(taskId: string | null) {
+  return useSWR(taskId ? ["job-details", taskId] : null, async () => {
     if (!taskId) return null
-    const data = await apiFetch<TaskHistoryEntry>(`/tasks/history/${taskId}`)
+    const data = await apiFetch<JobHistoryEntry>(`/jobs/history/${taskId}`)
     return data
   })
 }

@@ -16,70 +16,63 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  initDatabase,
-  reloadScheduler,
-  syncAnilist,
-  triggerScan,
-  useRunningTasks,
-  useTaskHistory,
-  useTaskStatistics,
-  useTaskTypes,
+  runExportQbittorrentJob,
+  runInitDbJob,
+  runScanNyaaJob,
+  runSyncAnilistJob,
+  useJobHistory,
+  useJobStatistics,
+  useRunningJobs,
 } from "@/lib/api-hooks"
-import type { TaskHistoryEntry, TaskStatusResponse } from "@/lib/api-types"
+import type { JobExecutionResponse, JobHistoryEntry } from "@/lib/api-types"
 import { cn } from "@/lib/utils"
 
-type TaskActionKey =
+type JobActionKey =
   | "Sincronización Anilist"
   | "Escaneo Nyaa"
-  | "Recargar planificador"
   | "Inicializar base de datos"
+  | "Exportar a qBittorrent"
 
-type HistoryEntry = {
-  task: TaskActionKey
-  status: TaskStatusResponse["status"]
-  detail: string
-  timestamp: string
-}
-
-const actionHandlers: Record<TaskActionKey, () => Promise<TaskStatusResponse>> = {
-  "Sincronización Anilist": () =>
-    syncAnilist({ season: null, season_year: null }),
-  "Escaneo Nyaa": () => triggerScan(),
-  "Recargar planificador": () => reloadScheduler(),
-  "Inicializar base de datos": () => initDatabase(),
+const actionHandlers: Record<JobActionKey, () => Promise<JobExecutionResponse>> = {
+  "Sincronización Anilist": () => runSyncAnilistJob(),
+  "Escaneo Nyaa": () => runScanNyaaJob(),
+  "Inicializar base de datos": () => runInitDbJob(),
+  "Exportar a qBittorrent": () => runExportQbittorrentJob({}),
 }
 
 type ActionsCardProps = {
-  onTaskTriggered?: (taskType: string, response: TaskStatusResponse) => void
+  onJobTriggered?: (jobType: JobActionKey, response: JobExecutionResponse) => void
 }
 
-function ActionsCard({ onTaskTriggered }: ActionsCardProps) {
-  const [workingKey, setWorkingKey] = React.useState<TaskActionKey | null>(null)
+function ActionsCard({ onJobTriggered }: ActionsCardProps) {
+  const [workingKey, setWorkingKey] = React.useState<JobActionKey | null>(null)
 
-  const runAction = async (key: TaskActionKey) => {
+  const runAction = async (key: JobActionKey) => {
     const action = actionHandlers[key]
     if (!action) return
 
     try {
       setWorkingKey(key)
       const result = await action()
-      onTaskTriggered?.(key, result)
+      onJobTriggered?.(key, result)
     } catch (error) {
       console.error(error)
-      onTaskTriggered?.(key, {
+      onJobTriggered?.(key, {
         status: "failed",
         detail: "La solicitud falló",
+        task_id: "",
+        result: null,
       })
     } finally {
       setWorkingKey(null)
     }
   }
 
-  const buttons: TaskActionKey[] = [
+  const buttons: JobActionKey[] = [
     "Sincronización Anilist",
     "Escaneo Nyaa",
-    "Recargar planificador",
     "Inicializar base de datos",
+    "Exportar a qBittorrent",
   ]
 
   return (
@@ -141,39 +134,39 @@ function formatDate(value?: string | null) {
   }
 }
 
-function RunningTasksCard() {
-  const { data, isLoading } = useRunningTasks()
+function RunningJobsCard() {
+  const { data, isLoading } = useRunningJobs()
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg font-semibold">Tareas en ejecución</CardTitle>
+        <CardTitle className="text-lg font-semibold">Trabajos en ejecución</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : !data || data.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No hay tareas ejecutándose en este momento.
+            No hay trabajos ejecutándose en este momento.
           </p>
         ) : (
           <div className="flex flex-col gap-3">
-            {data.map((task) => (
+            {data.map((job) => (
               <div
-                key={task.id ?? task.task_id ?? `${task.task_type}-${task.started_at}`}
+                key={job.id ?? job.task_id ?? `${job.task_type}-${job.started_at}`}
                 className="border-border/50 flex flex-col gap-1 rounded-md border p-3"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-medium">
-                    {task.task_type ?? "Tarea desconocida"}
+                  <span className="font-medium capitalize">
+                    {job.task_type.replace(/_/g, " ")}
                   </span>
-                  <StatusBadge status={task.status ?? "running"} />
+                  <StatusBadge status={job.status ?? "running"} />
                 </div>
-                {task.detail ? (
-                  <span className="text-sm text-muted-foreground">{task.detail}</span>
+                {job.error ? (
+                  <span className="text-sm text-destructive">{job.error}</span>
                 ) : null}
                 <span className="text-xs text-muted-foreground">
-                  Inició: {formatDate(task.started_at)}
+                  Inició: {formatDate(job.started_at)}
                 </span>
               </div>
             ))}
@@ -184,11 +177,22 @@ function RunningTasksCard() {
   )
 }
 
-function TaskHistoryTable({
+function renderJobDetail(job: JobHistoryEntry) {
+  if (job.error) return job.error
+  if (job.result && Object.keys(job.result).length > 0) {
+    return JSON.stringify(job.result)
+  }
+  if (job.parameters && Object.keys(job.parameters).length > 0) {
+    return JSON.stringify(job.parameters)
+  }
+  return "-"
+}
+
+function JobHistoryTable({
   entries,
   isLoading,
 }: {
-  entries?: TaskHistoryEntry[]
+  entries?: JobHistoryEntry[]
   isLoading: boolean
 }) {
   return (
@@ -200,63 +204,63 @@ function TaskHistoryTable({
         {isLoading ? (
           <Skeleton className="h-48 w-full" />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tarea</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Detalles</TableHead>
+        <Table>
+          <TableHeader>
+            <TableRow>
+                <TableHead>Trabajo</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Detalles</TableHead>
                 <TableHead>Inicio</TableHead>
                 <TableHead>Fin</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
               {!entries || entries.length === 0 ? (
-                <TableRow>
+              <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Aún no hay tareas registradas.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                entries.map((item) => (
-                  <TableRow key={item.id ?? item.task_id ?? `${item.task_type}-${item.created_at}`}>
+                    Aún no hay trabajos registrados.
+                </TableCell>
+              </TableRow>
+            ) : (
+                entries.map((job) => (
+                  <TableRow key={job.id ?? job.task_id ?? `${job.task_type}-${job.created_at}`}>
                     <TableCell className="max-w-[280px]">
                       <div className="flex flex-col gap-1">
                         <span className="font-medium capitalize">
-                          {item.task_type ?? "Desconocido"}
+                          {job.task_type.replace(/_/g, " ")}
                         </span>
-                        {typeof item.anilist_id === "number" ? (
+                        {typeof job.anilist_id === "number" ? (
                           <span className="text-xs text-muted-foreground">
-                            Anilist ID: {item.anilist_id}
+                            Anilist ID: {job.anilist_id}
                           </span>
                         ) : null}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={item.status} />
+                  </TableCell>
+                  <TableCell>
+                      <StatusBadge status={job.status} />
                     </TableCell>
                     <TableCell className="max-w-[360px] text-sm">
-                      {item.detail ?? "-"}
+                      {renderJobDetail(job)}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(item.started_at ?? item.created_at)}
+                      {formatDate(job.started_at ?? job.created_at)}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(item.finished_at ?? item.updated_at)}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                      {formatDate(job.completed_at ?? job.updated_at)}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
         )}
       </CardContent>
     </Card>
   )
 }
 
-function TaskSummaryCard() {
-  const { data: stats, isLoading } = useTaskStatistics({ period: "24h" })
+function JobSummaryCard() {
+  const { data: stats, isLoading } = useJobStatistics({ period: "24h" })
 
   return (
     <Card>
@@ -266,19 +270,13 @@ function TaskSummaryCard() {
       <CardContent className="grid gap-3 text-sm">
         {isLoading ? (
           <Skeleton className="h-20 w-full" />
-        ) : !stats || Object.keys(stats).length === 0 ? (
-          <p className="text-muted-foreground">
-            No hay estadísticas disponibles.
-          </p>
+        ) : !stats || stats.statistics.length === 0 ? (
+          <p className="text-muted-foreground">No hay estadísticas disponibles.</p>
         ) : (
-          Object.entries(stats).map(([key, value]) => (
-            <div key={key} className="flex items-center justify-between rounded-md border px-3 py-2">
-              <span className="capitalize">{key.replace(/_/g, " ")}</span>
-              <span className="font-semibold">
-                {typeof value === "number" || typeof value === "string"
-                  ? value
-                  : JSON.stringify(value)}
-              </span>
+          stats.statistics.map((item) => (
+            <div key={item.status} className="flex items-center justify-between rounded-md border px-3 py-2">
+              <span className="capitalize">{item.status.replace(/_/g, " ")}</span>
+              <span className="font-semibold">{item.count}</span>
             </div>
           ))
         )}
@@ -288,30 +286,31 @@ function TaskSummaryCard() {
 }
 
 export default function TasksPage() {
-  const { data: historyData, isLoading: historyLoading, mutate: refreshHistory } =
-    useTaskHistory({ limit: 25 })
-  const { data: taskTypes } = useTaskTypes()
+  const {
+    data: historyData,
+    isLoading: historyLoading,
+  } = useJobHistory({ limit: 25 })
 
-  const handleTaskTriggered = React.useCallback(
-    async (_taskType: string, _response: TaskStatusResponse) => {
-      await Promise.all([refreshHistory()])
+  const handleJobTriggered = React.useCallback(
+    async () => {
+      // Las mutaciones relevantes se disparan desde runJob
     },
-    [refreshHistory]
+    []
   )
 
   return (
     <PageShell
-      title="Tareas"
-      description="Ejecuta acciones manuales y revisa el historial."
+      title="Trabajos"
+      description="Ejecuta acciones manuales y revisa el historial del sistema."
     >
       <div className="grid gap-6 lg:grid-cols-[1fr_2fr]">
         <div className="flex flex-col gap-6">
-          <ActionsCard onTaskTriggered={handleTaskTriggered} />
-          <TaskSummaryCard />
-          <RunningTasksCard />
+          <ActionsCard onJobTriggered={handleJobTriggered} />
+          <JobSummaryCard />
+          <RunningJobsCard />
         </div>
         <div className="flex flex-col gap-6">
-          <TaskHistoryTable entries={historyData?.items} isLoading={historyLoading} />
+          <JobHistoryTable entries={historyData?.tasks} isLoading={historyLoading} />
         </div>
       </div>
     </PageShell>

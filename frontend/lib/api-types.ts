@@ -172,41 +172,124 @@ export type AppConfigPayload = Partial<
   path_mappings?: PathMapping[] | null
 }
 
-export type TaskHistoryEntry = {
-  id?: string
-  task_id?: string
-  task_type?: string | null
-  status?: string | null
+export type ScanNyaaJob = {
+  job_type: "scan_nyaa"
+}
+
+export type InitDbJob = {
+  job_type: "init_db"
+}
+
+export type SyncAnilistJob = {
+  job_type: "sync_anilist"
+  season?: "WINTER" | "SPRING" | "SUMMER" | "FALL" | null
+  season_year?: number | null
+}
+
+export type ExportQbittorrentJob = {
+  job_type: "export_qbittorrent"
+  limit?: number
+  anilist_id?: number | null
+  items?: string[]
+}
+
+export type JobRunPayload =
+  | ScanNyaaJob
+  | SyncAnilistJob
+  | InitDbJob
+  | ExportQbittorrentJob
+
+export type JobExecutionResponse = {
+  status: "ok" | "completed" | "queued" | "failed"
   detail?: string | null
+  task_id: string
+  result?: Record<string, unknown> | null
+}
+
+export type JobHistoryEntry = {
+  id?: string | null
+  task_id: string
+  task_type: string
+  status: string
+  trigger: string
   started_at?: string | null
-  finished_at?: string | null
+  completed_at?: string | null
+  parameters?: Record<string, unknown>
+  result?: Record<string, unknown>
+  error?: string | null
+  items_processed?: number
+  items_succeeded?: number
+  items_failed?: number
+  anilist_id?: number | null
   created_at?: string | null
   updated_at?: string | null
+}
+
+export type JobHistoryFilters = {
+  job_type?: string | null
+  status?: string | null
   anilist_id?: number | null
-  [key: string]: unknown
 }
 
-export type TaskHistoryResponse = {
-  items?: TaskHistoryEntry[]
-  results?: TaskHistoryEntry[]
-  data?: TaskHistoryEntry[]
-  total?: number
-  [key: string]: unknown
+export type JobHistoryListResponse = {
+  tasks: JobHistoryEntry[]
+  count: number
+  limit: number
+  filters?: JobHistoryFilters
 }
 
-export type RunningTasksResponse = {
-  items?: TaskHistoryEntry[]
-  data?: TaskHistoryEntry[]
-  [key: string]: unknown
+export type RunningJobsResponse = {
+  tasks: JobHistoryEntry[]
+  count: number
 }
 
-export type TaskStatisticsResponse = {
-  [key: string]: unknown
+export type JobStatusAggregate = {
+  status: string
+  count: number
+  total_processed?: number
+  total_succeeded?: number
+  total_failed?: number
 }
 
-export type TaskTypesResponse = (string | { value?: string; label?: string })[] | {
-  items?: (string | { value?: string; label?: string })[]
-  [key: string]: unknown
+export type JobStatisticsResponse = {
+  period: "24h" | "7d" | "30d" | "all"
+  job_type?: string | null
+  statistics: JobStatusAggregate[]
+}
+
+export type JobTypeInfo = {
+  type: string
+  description: string
+  trigger_types: string[]
+}
+
+export type JobTypeListResponse = {
+  job_types: JobTypeInfo[]
+}
+
+export type QBittorrentHistoryRecord = {
+  id?: string | null
+  anilist_id: number
+  title: string
+  torrent_path: string
+  save_path: string
+  category?: string | null
+  infohash?: string | null
+  qbittorrent_response?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export type QBittorrentHistoryListResponse = {
+  anilist_id: number
+  count: number
+  records: QBittorrentHistoryRecord[]
+  limit: number
+}
+
+export type TaskStatusResponse = {
+  status: "ok" | "completed" | "queued" | "failed"
+  detail?: string | null
 }
 
 export type TorrentSeenRecord = {
@@ -218,29 +301,6 @@ export type TorrentSeenRecord = {
   infohash?: string | null
   saved_at?: string | null
   published_at?: string | null
-}
-
-export type TaskStatusResponse = {
-  status: "ok" | "completed" | "queued" | "failed"
-  detail?: string | null
-}
-
-export type SyncAnilistRequest = {
-  season?: "WINTER" | "SPRING" | "SUMMER" | "FALL" | null
-  season_year?: number | null
-}
-
-export type SyncAnilistResponse = {
-  status: "ok" | "completed" | "queued" | "failed"
-  detail?: string | null
-  count: number
-  season: "WINTER" | "SPRING" | "SUMMER" | "FALL"
-  season_year: number
-}
-
-export type ScanNyaaResponse = {
-  status?: "completed" | "queued" | "ok"
-  detail?: string | null
 }
 
 export type ApiError = {

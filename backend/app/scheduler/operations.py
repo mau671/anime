@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,11 +12,12 @@ from app.core.config import ServiceSettings
 from app.core.task_tracker import track_task
 from app.core.template import TemplateContext, build_base_context, render_template
 from app.core.utils import ensure_directory, sanitize_save_path, utc_now
-from app.db.models import AnimeDocument, TorrentSeenDocument
+from app.db.models import AnimeDocument, QBittorrentHistoryDocument, TorrentSeenDocument
 from app.db.repositories import (
     AnimeRepository,
     AnimeSettingsRepository,
     AppConfigRepository,
+    QBittorrentHistoryRepository,
     TaskHistoryRepository,
     TorrentSeenRepository,
 )
@@ -192,6 +194,7 @@ async def scan_nyaa_sources(
     torrent_repo: TorrentSeenRepository,
     config_repo: AppConfigRepository,
     task_history_repo: TaskHistoryRepository,
+    qbittorrent_history_repo: QBittorrentHistoryRepository,
     nyaa_client: NyaaClient,
     downloader: TorrentDownloader,
     tvdb_client: TVDBClient,
@@ -251,7 +254,9 @@ async def scan_nyaa_sources(
 
             tracker.increment_processed()
 
-            template_context = await _build_template_values(entry, anime, tvdb_client, tmdb_client, logger)
+            template_context = await _build_template_values(
+                entry, anime, tvdb_client, tmdb_client, logger
+            )
 
             save_path_raw = entry.get("save_path")
             save_path_template = entry.get("save_path_template")
@@ -359,6 +364,16 @@ async def scan_nyaa_sources(
                         )
                         if added:
                             QB_TORRENTS_ADDED.inc()
+                            await qbittorrent_history_repo.record(
+                                QBittorrentHistoryDocument(
+                                    anilist_id=anilist_id,
+                                    title=item.title,
+                                    torrent_path=str(torrent_payload_path),
+                                    save_path=str(qbit_save_path_mapped),
+                                    category=qbit_client.category,
+                                    infohash=item.infohash,
+                                )
+                            )
                             logger.info(
                                 "qbittorrent_torrent_added",
                                 anilist_id=anilist_id,

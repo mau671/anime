@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import datetime
+from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument
@@ -11,6 +12,7 @@ from app.db.models import (
     AnimeDocument,
     AnimeSettingsDocument,
     AppConfigDocument,
+    QBittorrentHistoryDocument,
     TaskHistoryDocument,
     TorrentSeenDocument,
 )
@@ -113,6 +115,46 @@ class TorrentSeenRepository:
             query["$or"].append({"infohash": infohash})
         query["$or"].append({"link": link})
         return await self._collection.count_documents(query, limit=1) > 0
+
+    async def list_pending_for_export(
+        self,
+        *,
+        limit: int = 50,
+        anilist_id: int | None = None,
+        items: list[str] | None = None,
+    ) -> list[dict]:
+        query: dict[str, Any] = {
+            "exported_to_qbittorrent": {"$ne": True},
+            "torrent_path": {"$ne": None},
+        }
+        if anilist_id is not None:
+            query["anilist_id"] = anilist_id
+        if items:
+            query["$or"] = [
+                {"torrent_path": {"$in": items}},
+                {"link": {"$in": items}},
+                {"infohash": {"$in": items}},
+            ]
+        cursor = self._collection.find(query).sort("seen_at", 1).limit(limit)
+        return [doc async for doc in cursor]
+
+    async def mark_exported(
+        self,
+        document_id,
+        *,
+        exported: bool,
+        exported_at: datetime | None,
+    ) -> None:
+        await self._collection.update_one(
+            {"_id": document_id},
+            {
+                "$set": {
+                    "exported_to_qbittorrent": exported,
+                    "exported_at": exported_at,
+                    "updated_at": utc_now(),
+                }
+            },
+        )
 
 
 class AppConfigRepository:
@@ -233,3 +275,32 @@ class TaskHistoryRepository:
 
         result = await self._collection.aggregate(pipeline).to_list(length=None)
         return {item["_id"]: item for item in result}
+
+
+class QBittorrentHistoryRepository:
+    """Repository storing torrents pushed to qBittorrent."""
+
+    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+        self._collection = db["qbittorrent_history"]
+
+    async def ensure_indexes(self) -> None:
+        await self._collection.create_index("anilist_id")
+        await self._collection.create_index("created_at")
+
+    async def record(self, document: QBittorrentHistoryDocument) -> dict:
+        doc = document.to_mongo_dict()
+        result = await self._collection.insert_one(doc)
+        doc["_id"] = result.inserted_id
+        return doc
+
+    async def list_by_anilist(
+        self,
+        anilist_id: int,
+        limit: int = 50,
+    ) -> list[dict]:
+        cursor = (
+            self._collection.find({"anilist_id": anilist_id})
+            .sort("created_at", -1)
+            .limit(limit)
+        )
+        return [doc async for doc in cursor]

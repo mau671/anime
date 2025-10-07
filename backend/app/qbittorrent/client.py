@@ -25,6 +25,7 @@ class QBittorrentClient:
         self._username = username
         self._password = password
         self._category = category
+        self._last_category = category
         self._timeout = timeout_seconds
         self._logger = logger
         self._client = httpx.AsyncClient(
@@ -101,6 +102,7 @@ class QBittorrentClient:
             await self.login()
 
         cat = category or self._category
+        self._last_category = cat
 
         try:
             file_data = await asyncio.to_thread(torrent_path.read_bytes)
@@ -167,3 +169,7 @@ class QBittorrentClient:
         except httpx.HTTPError as exc:
             self._logger.error("qbittorrent_get_torrents_error", error=str(exc))
             return []
+
+    @property
+    def category(self) -> str:
+        return self._last_category or self._category

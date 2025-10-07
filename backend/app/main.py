@@ -16,23 +16,19 @@ from app.api.dependencies import get_container, get_scheduler
 from app.api.schemas import (
     AnimeEnvelope,
     AnimeResource,
-    ScanNyaaResponse,
     SettingsEnvelope,
     SettingsResource,
     SettingsUpdatePayload,
-    SyncAnilistRequest,
-    SyncAnilistResponse,
     TaskStatusResponse,
     TMDBMetadata,
     TorrentSeenRecord,
     TVDBMetadata,
 )
-from app.api.tasks import router as tasks_router
+from app.api.jobs import router as jobs_router
 from app.core.bootstrap import ServiceContainer, build_container
 from app.core.config import get_settings
 from app.core.utils import ensure_directory, sanitize_save_path, utc_now
 from app.db.models import AnimeSettingsDocument
-from app.scheduler.operations import scan_nyaa_sources, sync_anilist_catalog
 from app.scheduler.service import SchedulerService
 
 
@@ -186,6 +182,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             torrent_repo=container.torrent_repo,
             config_repo=container.config_repo,
             task_history_repo=container.task_history_repo,
+            qbittorrent_history_repo=container.qbittorrent_history_repo,
             anilist_client=container.anilist_client,
             nyaa_client=container.nyaa_client,
             downloader=container.downloader,
@@ -224,7 +221,7 @@ app.add_middleware(
 
 # Include API routers
 app.include_router(config_router)
-app.include_router(tasks_router)
+app.include_router(jobs_router)
 
 
 @app.get("/health", response_model=TaskStatusResponse)
@@ -388,62 +385,6 @@ async def delete_settings(
     if not deleted:
         raise HTTPException(status_code=404, detail="Settings not found")
     return TaskStatusResponse(status="ok", detail=f"Removed settings for {anilist_id}")
-
-
-@app.post("/tasks/init-db", response_model=TaskStatusResponse)
-async def init_db(
-    container: Annotated[ServiceContainer, Depends(get_container)],
-) -> TaskStatusResponse:
-    await container.anime_repo.ensure_indexes()
-    await container.settings_repo.ensure_indexes()
-    await container.torrent_repo.ensure_indexes()
-    return TaskStatusResponse(status="ok", detail="Indexes ensured")
-
-
-@app.post("/tasks/sync-anilist", response_model=SyncAnilistResponse)
-async def sync_anilist(
-    payload: SyncAnilistRequest,
-    container: Annotated[ServiceContainer, Depends(get_container)],
-) -> SyncAnilistResponse:
-    count = await sync_anilist_catalog(
-        settings=container.settings,
-        client=container.anilist_client,
-        repository=container.anime_repo,
-        task_history_repo=container.task_history_repo,
-        logger=container.logger,
-        season=payload.season,
-        season_year=payload.season_year,
-        trigger="manual",
-    )
-    season_used = (payload.season or container.settings.api.season).upper()
-    year_used = payload.season_year or container.settings.api.season_year or utc_now().year
-    return SyncAnilistResponse(
-        status="completed",
-        count=count,
-        season=season_used,
-        season_year=year_used,
-    )
-
-
-@app.post("/tasks/scan-nyaa", response_model=ScanNyaaResponse)
-async def trigger_scan(
-    container: Annotated[ServiceContainer, Depends(get_container)],
-) -> ScanNyaaResponse:
-    await scan_nyaa_sources(
-        settings=container.settings,
-        anime_repo=container.anime_repo,
-        settings_repo=container.settings_repo,
-        torrent_repo=container.torrent_repo,
-        config_repo=container.config_repo,
-        task_history_repo=container.task_history_repo,
-        nyaa_client=container.nyaa_client,
-        downloader=container.downloader,
-        tvdb_client=container.tvdb_client,
-        tmdb_client=container.tmdb_client,
-        logger=container.logger,
-        trigger="manual",
-    )
-    return ScanNyaaResponse(status="completed")
 
 
 @app.post("/scheduler/reload", response_model=TaskStatusResponse)
