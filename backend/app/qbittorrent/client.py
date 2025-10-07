@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
-import aiofiles
 import httpx
 from structlog.stdlib import BoundLogger
 
@@ -103,8 +103,7 @@ class QBittorrentClient:
         cat = category or self._category
 
         try:
-            async with aiofiles.open(torrent_path, "rb") as f:
-                file_data = await f.read()
+            file_data = await asyncio.to_thread(torrent_path.read_bytes)
 
             files = {
                 "torrents": (torrent_path.name, file_data, "application/x-bittorrent")

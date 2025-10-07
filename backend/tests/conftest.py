@@ -38,21 +38,12 @@ async def client() -> AsyncIterator[AsyncClient]:
 
 
 @pytest_asyncio.fixture
-async def config_repo() -> AsyncIterator:
-    """Repository for app config with test database."""
-    from app.core.config import get_settings
-    from app.db.repositories import AppConfigRepository
+async def config_repo(client: AsyncClient) -> AsyncIterator:  # noqa: ANN001 - type provided via return
+    """Repository for app config tied to the running container."""
+    from app.main import app
 
-    settings = get_settings()
-    test_db_name = f"{settings.mongo.db_name}_test"
-
-    client = AsyncIOMotorClient(settings.mongo.uri)
-    db = client[test_db_name]
-    repo = AppConfigRepository(db)
-
+    repo = app.state.container.config_repo
     try:
         yield repo
     finally:
-        # Clean up test database
-        await client.drop_database(test_db_name)
-        client.close()
+        await app.state.container.mongo_client.drop_database(repo._collection.database.name)
