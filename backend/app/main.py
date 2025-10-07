@@ -203,7 +203,14 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             app.state.scheduler = None
 
 
-app = FastAPI(title="Anime Torrent Monitor", version="1.1.0", lifespan=_lifespan)
+app = FastAPI(
+    title="Anime Torrent Monitor",
+    version="1.1.0",
+    lifespan=_lifespan,
+    root_path="/api",
+    docs_url="/docs",
+    openapi_url="/openapi.json",
+)
 
 settings = get_settings()
 
