@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api-client"
 import type {
   AddAnimeRequest,
   AnimeEnvelope,
+  AnimeListResponse,
   AppConfig,
   AppConfigPayload,
   ExportQbittorrentJob,
@@ -28,7 +29,7 @@ import type {
 } from "@/lib/api-types"
 
 const CACHE_KEYS = {
-  animes: (limit?: number) => ["animes", limit ?? 50],
+  animes: (page?: number, pageSize?: number) => ["animes", page ?? 1, pageSize ?? 50],
   settings: () => ["settings"],
   animeSettings: (anilistId: number) => ["settings", anilistId],
   downloads: (anilistId: number, limit?: number) => [
@@ -54,9 +55,12 @@ const CACHE_KEYS = {
   jobTypes: () => ["job-types"],
 }
 
-export function useAnimes(limit = 50) {
-  return useSWR(CACHE_KEYS.animes(limit), async () => {
-    const data = await apiFetch<AnimeEnvelope[]>(`/animes?limit=${limit}`)
+export function useAnimes(page = 1, pageSize = 50) {
+  return useSWR(CACHE_KEYS.animes(page, pageSize), async () => {
+    const params = new URLSearchParams()
+    params.set("page", page.toString())
+    params.set("page_size", pageSize.toString())
+    const data = await apiFetch<AnimeListResponse>(`/animes?${params.toString()}`)
     return data
   })
 }

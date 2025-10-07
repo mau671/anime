@@ -206,6 +206,14 @@ class AnimeEnvelope(APIModel):
     anime: AnimeResource
 
 
+class AnimeListResponse(APIModel):
+    animes: list[AnimeResource]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class TorrentSeenRecord(APIModel):
     id: str | None = None
     anilist_id: int | None = None

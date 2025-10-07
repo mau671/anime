@@ -50,6 +50,14 @@ export type AnimeEnvelope = {
   anime: Anime
 }
 
+export type AnimeListResponse = {
+  animes: Anime[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
 export type Settings = {
   anilist_id: number
   enabled?: boolean | null

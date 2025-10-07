@@ -43,6 +43,32 @@ class AnimeRepository:
         cursor = self._collection.find()
         return [doc async for doc in cursor]
 
+    async def count(self) -> int:
+        """Count total number of animes."""
+        return await self._collection.count_documents({})
+
+    async def list_paginated(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[dict], int]:
+        """
+        List animes with pagination.
+        
+        Args:
+            page: Page number (1-indexed)
+            page_size: Number of items per page
+            
+        Returns:
+            Tuple of (items, total_count)
+        """
+        skip = (page - 1) * page_size
+        cursor = self._collection.find().sort("updated_at", -1).skip(skip).limit(page_size)
+        items = [doc async for doc in cursor]
+        total = await self.count()
+        return items, total
+
     async def get_by_ids(self, ids: Iterable[int]) -> dict[int, dict]:
         cursor = self._collection.find({"anilist_id": {"$in": list(ids)}})
         result: dict[int, dict] = {}

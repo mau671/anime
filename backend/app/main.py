@@ -16,6 +16,7 @@ from app.api.dependencies import get_container, get_scheduler
 from app.api.schemas import (
     AddAnimeRequest,
     AnimeEnvelope,
+    AnimeListResponse,
     AnimeResource,
     SettingsEnvelope,
     SettingsResource,
@@ -238,14 +239,31 @@ async def health(
     return TaskStatusResponse(status="ok", detail="Service healthy")
 
 
-@app.get("/animes", response_model=list[AnimeEnvelope])
+@app.get("/animes", response_model=AnimeListResponse)
 async def list_animes(
     container: Annotated[ServiceContainer, Depends(get_container)],
-    limit: int = Query(50, ge=1, le=500),
-) -> list[AnimeEnvelope]:
-    items = await container.anime_repo.all()
-    limited = items[:limit]
-    return [AnimeEnvelope(anime=_build_anime_resource(item)) for item in limited]
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(50, ge=1, le=100, description="Items per page"),
+) -> AnimeListResponse:
+    """
+    List animes with pagination.
+    
+    Returns animes sorted by most recently updated first.
+    """
+    items, total = await container.anime_repo.list_paginated(
+        page=page,
+        page_size=page_size,
+    )
+    
+    total_pages = (total + page_size - 1) // page_size  # Ceiling division
+    
+    return AnimeListResponse(
+        animes=[_build_anime_resource(item) for item in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
 
 
 @app.post("/animes", response_model=AnimeEnvelope, status_code=201)
