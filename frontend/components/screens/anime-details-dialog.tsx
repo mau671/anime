@@ -20,10 +20,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useDownloadHistory, useQbittorrentHistory } from "@/lib/api-hooks"
+import { useAnimeSettings, useDownloadHistory, useQbittorrentHistory } from "@/lib/api-hooks"
 import type { AnimeEnvelope, SettingsEnvelope } from "@/lib/api-types"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
+import { processPathTemplate } from "@/lib/path-template"
 
 export type AnimeDetailsDialogProps = {
   open: boolean
@@ -61,6 +62,7 @@ export function AnimeDetailsDialog({
 
   const { data: downloadHistory, isLoading } = useDownloadHistory(anilistId ?? null)
   const { data: qbittorrentHistory, isLoading: qbittorrentLoading } = useQbittorrentHistory(anilistId ?? null)
+  const { data: fullSettingsEnvelope } = useAnimeSettings(anilistId ?? null)
 
   const title =
     anime.title?.english ?? anime.title?.romaji ?? anime.title?.native ?? "Sin título"
@@ -69,6 +71,29 @@ export function AnimeDetailsDialog({
     .replace(/<[^>]+>/g, "")
     .trim()
   const siteUrl = typeof anime.site_url === "string" ? anime.site_url : undefined
+
+  // Render path or template
+  const getDisplayPath = React.useMemo(() => {
+    if (!settings) return "-"
+    
+    // If there's a direct save_path, use it
+    if (settings.save_path) {
+      return settings.save_path
+    }
+    
+    // If there's a template and we have the full envelope, render it
+    if (settings.save_path_template && fullSettingsEnvelope) {
+      try {
+        const rendered = processPathTemplate(settings.save_path_template, fullSettingsEnvelope)
+        return `${rendered} (desde template)`
+      } catch (error) {
+        console.error("Error rendering template:", error)
+        return settings.save_path_template
+      }
+    }
+    
+    return "-"
+  }, [settings, fullSettingsEnvelope])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -104,7 +129,7 @@ export function AnimeDetailsDialog({
               {settings ? (
                 <div className="grid gap-2 text-sm">
                   <span>Monitoreo: {settings.enabled ? "Activo" : "Inactivo"}</span>
-                  <span>Ruta: {settings.save_path ?? "-"}</span>
+                  <span className="break-words">Ruta: {getDisplayPath}</span>
                   <span>Consulta: {settings.search_query ?? "-"}</span>
                   <span>
                     Resolución preferida: {settings.preferred_resolution ?? "-"}
