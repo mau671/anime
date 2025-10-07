@@ -353,13 +353,13 @@ async def scan_nyaa_sources(
                             if torrent_template
                             else filepath
                         )
-                        save_payload_path = (
-                            Path(render_template(save_template, template_context))
-                            if save_template
-                            else save_path
-                        )
-
-                        qbit_save_path_mapped = path_mapper.to_qbittorrent(save_payload_path)
+                        
+                        # If there's a qBittorrent save template, use it directly (it's already the qBit path)
+                        # Otherwise, use the backend save_path and map it to qBittorrent
+                        if save_template:
+                            qbit_save_path_mapped = Path(render_template(save_template, template_context))
+                        else:
+                            qbit_save_path_mapped = path_mapper.to_qbittorrent(save_path)
 
                         added = await qbit_client.add_torrent(
                             torrent_payload_path,

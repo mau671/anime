@@ -40,6 +40,37 @@ class FakeTorrentRepo:
         self.seen[key] = payload
         return payload
 
+    async def list_pending_for_export(
+        self,
+        *,
+        limit: int = 50,
+        anilist_id: int | None = None,
+        items: list[str] | None = None,
+    ) -> list[dict]:
+        results = []
+        for key, doc in self.seen.items():
+            if doc.get("exported_to_qbittorrent"):
+                continue
+            if doc.get("torrent_path") is None:
+                continue
+            if anilist_id is not None and doc.get("anilist_id") != anilist_id:
+                continue
+            results.append(doc)
+            if len(results) >= limit:
+                break
+        return results
+
+    async def mark_exported(
+        self,
+        document_id,
+        *,
+        exported: bool,
+        exported_at,
+    ) -> None:
+        # In tests, document_id is not used since we don't have _id
+        # This is a simplified stub
+        pass
+
 
 class FakeNyaaClient:
     def __init__(self, items: list[NyaaItem]) -> None:

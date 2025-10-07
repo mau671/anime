@@ -125,8 +125,10 @@ async def _run_export_qbittorrent(
     container: ServiceContainer,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
+    from app.core.template import render_template
     from app.qbittorrent.client import QBittorrentClient
     from app.qbittorrent.path_mapper import PathMapper
+    from app.scheduler.operations import _build_template_values
 
     config = await _ensure_qbittorrent_enabled(container)
 
@@ -170,6 +172,22 @@ async def _run_export_qbittorrent(
     )
     path_mapper = PathMapper(config.get("path_mappings", []))
 
+    # Get templates from config
+    torrent_template = config.get("qbittorrent_torrent_template")
+    save_template = config.get("qbittorrent_save_template")
+
+    # Build anime map for template context
+    unique_anilist_ids = list({entry.get("anilist_id") for entry in torrents if entry.get("anilist_id")})
+    anime_map = await container.anime_repo.get_by_ids(unique_anilist_ids) if unique_anilist_ids else {}
+    
+    # Build settings map for template context
+    settings_list = []
+    for aid in unique_anilist_ids:
+        setting = await container.settings_repo.get(aid)
+        if setting:
+            settings_list.append(setting)
+    settings_map = {s["anilist_id"]: s for s in settings_list}
+
     exported = skipped = failed = 0
 
     try:
@@ -179,12 +197,36 @@ async def _run_export_qbittorrent(
                 skipped += 1
                 continue
 
-            backend_path = entry.get("save_path") or torrent_path
-            mapped_save_path = path_mapper.to_qbittorrent(backend_path)
+            entry_anilist_id = entry.get("anilist_id", 0)
+            anime = anime_map.get(entry_anilist_id)
+            setting = settings_map.get(entry_anilist_id, {})
+
+            # Build template context for this entry
+            template_context = await _build_template_values(
+                setting,
+                anime,
+                container.tvdb_client,
+                container.tmdb_client,
+                container.logger,
+            )
+
+            # Resolve torrent path (use template if configured, otherwise use downloaded path)
+            final_torrent_path = (
+                Path(render_template(torrent_template, template_context))
+                if torrent_template
+                else Path(torrent_path)
+            )
+
+            # Resolve save path (use template if configured, otherwise map backend path)
+            if save_template:
+                qbit_save_path = Path(render_template(save_template, template_context))
+            else:
+                backend_path = entry.get("save_path") or torrent_path
+                qbit_save_path = path_mapper.to_qbittorrent(backend_path)
 
             added = await qbit_client.add_torrent(
-                Path(torrent_path),
-                Path(mapped_save_path),
+                final_torrent_path,
+                qbit_save_path,
             )
             if not added:
                 failed += 1
@@ -192,10 +234,10 @@ async def _run_export_qbittorrent(
 
             await container.qbittorrent_history_repo.record(
                 QBittorrentHistoryDocument(
-                    anilist_id=entry.get("anilist_id", 0),
+                    anilist_id=entry_anilist_id,
                     title=entry.get("title") or Path(torrent_path).name,
-                    torrent_path=str(Path(torrent_path).resolve()),
-                    save_path=str(Path(mapped_save_path).resolve()),
+                    torrent_path=str(final_torrent_path.resolve()),
+                    save_path=str(qbit_save_path.resolve()),
                     category=config.get("qbittorrent_category", "anime"),
                     infohash=entry.get("infohash"),
                 )
