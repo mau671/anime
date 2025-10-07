@@ -30,10 +30,23 @@ class TorrentDownloader:
 
     async def download(self, url: str, title: str, infohash: str | None, destination: Path) -> Path:
         cleaned_title = sanitize_filename(title)
-        filename_parts = [cleaned_title or (infohash or "torrent")]
+        
+        # Build filename with title and infohash
         if infohash:
-            filename_parts.append(infohash.lower())
-        filename = " ".join(filename_parts).strip() + ".torrent"
+            # Reserve space for: " " + infohash (40 chars) + ".torrent" (8 chars) = 49 chars
+            # Max filename length is typically 255, so title can be max 206 chars
+            max_title_length = 206
+            if len(cleaned_title) > max_title_length:
+                cleaned_title = cleaned_title[:max_title_length].rstrip()
+            filename_parts = [cleaned_title or "torrent", infohash.lower()]
+            filename = " ".join(filename_parts) + ".torrent"
+        else:
+            # Without infohash, leave more space for title
+            max_title_length = 247  # 255 - 8 (".torrent")
+            if len(cleaned_title) > max_title_length:
+                cleaned_title = cleaned_title[:max_title_length].rstrip()
+            filename = (cleaned_title or "torrent") + ".torrent"
+        
         filepath = destination / filename
 
         domain = urlparse(url).netloc or "torrent_download"
