@@ -340,7 +340,10 @@ async def scan_nyaa_sources(
                 total_downloaded += 1
                 tracker.increment_succeeded()
 
-                if qbit_enabled and qbit_client and path_mapper:
+                # Determine if this torrent should be auto-added to qBittorrent
+                should_auto_add = qbit_enabled and qbit_client and path_mapper
+
+                if should_auto_add:
                     try:
                         torrent_template = app_config.get("qbittorrent_torrent_template")
                         save_template = app_config.get("qbittorrent_save_template")
@@ -399,6 +402,10 @@ async def scan_nyaa_sources(
                     magnet=str(item.magnet) if item.magnet else None,
                     infohash=item.infohash,
                     published_at=item.published_at,
+                    save_path=str(save_path),
+                    torrent_path=str(filepath),
+                    exported_to_qbittorrent=should_auto_add,
+                    exported_at=utc_now() if should_auto_add else None,
                 )
                 await torrent_repo.mark_seen(document)
 
