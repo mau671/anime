@@ -18,6 +18,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
   runExportQbittorrentJob,
   runInitDbJob,
   runScanNyaaJob,
@@ -260,7 +266,21 @@ function JobHistoryTable({
                       <StatusBadge status={job.status} />
                     </TableCell>
                     <TableCell className="max-w-[360px] text-sm">
-                      {renderJobDetail(job)}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="truncate cursor-help">
+                              {renderJobDetail(job)}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent 
+                            side="top" 
+                            className="max-w-md break-words"
+                          >
+                            <p className="whitespace-pre-wrap">{renderJobDetail(job)}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDate(job.started_at ?? job.created_at)}
