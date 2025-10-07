@@ -79,6 +79,8 @@ class AppConfigDocument(MongoModel):
     qbittorrent_username: str | None = None
     qbittorrent_password: str | None = None
     qbittorrent_category: str = "anime"
+    qbittorrent_torrent_template: str | None = None
+    qbittorrent_save_template: str | None = None
 
     # Path mapping (backend path -> qBittorrent path)
     path_mappings: list[dict[str, str]] = Field(default_factory=list)

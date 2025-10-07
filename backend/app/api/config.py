@@ -29,13 +29,10 @@ async def get_app_config(
     if config.get("qbittorrent_password"):
         config["qbittorrent_password"] = "***"
 
-    # Convert path_mappings to PathMapping objects
-    path_mappings = []
-    for mapping in config.get("path_mappings", []):
-        path_mappings.append(
-            PathMapping(from_path=mapping.get("from", ""), to_path=mapping.get("to", ""))
-        )
-    config["path_mappings"] = path_mappings
+    config["path_mappings"] = [
+        PathMapping(from_path=mapping.get("from", ""), to_path=mapping.get("to", ""))
+        for mapping in config.get("path_mappings", [])
+    ]
 
     return AppConfigResponse(**config)
 
@@ -89,12 +86,10 @@ async def update_app_config(
         updated["qbittorrent_password"] = "***"
 
     # Convert path_mappings to PathMapping objects for response
-    path_mappings = []
-    for mapping in updated.get("path_mappings", []):
-        path_mappings.append(
-            PathMapping(from_path=mapping.get("from", ""), to_path=mapping.get("to", ""))
-        )
-    updated["path_mappings"] = path_mappings
+    updated["path_mappings"] = [
+        PathMapping(from_path=mapping.get("from", ""), to_path=mapping.get("to", ""))
+        for mapping in updated.get("path_mappings", [])
+    ]
 
     container.logger.info("app_config_updated", fields=list(update_data.keys()))
 

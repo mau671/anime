@@ -19,6 +19,14 @@ TORRENTS_ERRORS = Counter(
 REQUEST_LATENCY = Histogram(
     "external_request_latency_seconds", "Latency of external HTTP requests", ["target"]
 )
+QB_TORRENTS_ADDED = Counter(
+    "qbittorrent_torrents_added_total",
+    "Number of torrents successfully added to qBittorrent",
+)
+QB_TORRENTS_FAILED = Counter(
+    "qbittorrent_torrents_failed_total",
+    "Number of torrents that failed to add to qBittorrent",
+)
 
 _METRICS_LOCK = Lock()
 _METRICS_STARTED = False

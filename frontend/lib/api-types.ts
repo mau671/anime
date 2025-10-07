@@ -141,6 +141,8 @@ export type AppConfig = {
   qbittorrent_username?: string | null
   qbittorrent_password?: string | null
   qbittorrent_category: string
+  qbittorrent_torrent_template?: string | null
+  qbittorrent_save_template?: string | null
   path_mappings: PathMapping[]
   auto_add_to_qbittorrent: boolean
   default_save_path?: string | null

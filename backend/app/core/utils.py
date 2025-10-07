@@ -10,8 +10,6 @@ from pathlib import Path
 
 from structlog.stdlib import BoundLogger
 
-TemplateContext = Mapping[str, object | None]
-
 INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*]')
 MULTIPLE_SPACES = re.compile(r"\s+")
 RESOLUTION_PATTERN = re.compile(r"\b(480p|720p|960p|1080p|1440p|2160p|4K)\b", re.IGNORECASE)
@@ -52,7 +50,7 @@ def _flatten_context(prefix: str, value: object, *, sanitize_values: bool) -> di
 
 
 def build_template_mapping(
-    context: TemplateContext, *, sanitize_values: bool = False
+    context: Mapping[str, object | None], *, sanitize_values: bool = False
 ) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for key, value in context.items():
@@ -63,7 +61,7 @@ def build_template_mapping(
     return mapping
 
 
-def render_save_path_template(template: str, mapping: TemplateContext) -> str:
+def render_save_path_template(template: str, mapping: Mapping[str, object | None]) -> str:
     flattened = build_template_mapping(mapping, sanitize_values=True)
 
     def replacement(match: re.Match[str]) -> str:

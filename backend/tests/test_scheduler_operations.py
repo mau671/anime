@@ -85,6 +85,9 @@ class FakeConfigRepo:
         return {
             "qbittorrent_enabled": False,
             "auto_add_to_qbittorrent": False,
+            "qbittorrent_torrent_template": None,
+            "qbittorrent_save_template": None,
+            "path_mappings": [],
         }
 
 

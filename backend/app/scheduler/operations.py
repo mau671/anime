@@ -9,13 +9,8 @@ from app.anilist.client import AniListClient
 from app.anilist.models import Anime
 from app.core.config import ServiceSettings
 from app.core.task_tracker import track_task
-from app.core.utils import (
-    TemplateContext,
-    ensure_directory,
-    render_save_path_template,
-    sanitize_save_path,
-    utc_now,
-)
+from app.core.template import TemplateContext, build_base_context, render_template
+from app.core.utils import ensure_directory, sanitize_save_path, utc_now
 from app.db.models import AnimeDocument, TorrentSeenDocument
 from app.db.repositories import (
     AnimeRepository,
@@ -28,6 +23,8 @@ from app.downloader.torrent_downloader import TorrentDownloader
 from app.metrics.registry import (
     ANILIST_UPSERTED,
     NYAA_ITEMS_FOUND,
+    QB_TORRENTS_ADDED,
+    QB_TORRENTS_FAILED,
     TORRENTS_DOWNLOADED,
     TORRENTS_ERRORS,
 )
@@ -129,12 +126,7 @@ async def _build_template_values(
     logger: BoundLogger,
 ) -> TemplateContext:
     """Build template context for save path rendering."""
-    now = utc_now()
-    context: dict[str, Any] = {
-        "currentYear": now.year,
-        "currentMonth": f"{now.month:02d}",
-        "currentDay": f"{now.day:02d}",
-    }
+    context: dict[str, Any] = build_base_context()
 
     # Add anime data with convenient aliases
     if anime:
@@ -259,15 +251,14 @@ async def scan_nyaa_sources(
 
             tracker.increment_processed()
 
+            template_context = await _build_template_values(entry, anime, tvdb_client, tmdb_client, logger)
+
             save_path_raw = entry.get("save_path")
             save_path_template = entry.get("save_path_template")
             resolved_save_path: Path | None = None
 
             if save_path_template:
-                mapping = await _build_template_values(
-                    entry, anime, tvdb_client, tmdb_client, logger
-                )
-                rendered = render_save_path_template(save_path_template, mapping)
+                rendered = render_template(save_path_template, template_context)
                 if not rendered:
                     logger.warning(
                         "nyaa_save_path_template_empty",
@@ -346,17 +337,39 @@ async def scan_nyaa_sources(
 
                 if qbit_enabled and qbit_client and path_mapper:
                     try:
-                        qbit_save_path = path_mapper.to_qbittorrent(save_path)
-                        added = await qbit_client.add_torrent(filepath, qbit_save_path)
+                        torrent_template = app_config.get("qbittorrent_torrent_template")
+                        save_template = app_config.get("qbittorrent_save_template")
+
+                        torrent_payload_path = (
+                            Path(render_template(torrent_template, template_context))
+                            if torrent_template
+                            else filepath
+                        )
+                        save_payload_path = (
+                            Path(render_template(save_template, template_context))
+                            if save_template
+                            else save_path
+                        )
+
+                        qbit_save_path_mapped = path_mapper.to_qbittorrent(save_payload_path)
+
+                        added = await qbit_client.add_torrent(
+                            torrent_payload_path,
+                            qbit_save_path_mapped,
+                        )
                         if added:
+                            QB_TORRENTS_ADDED.inc()
                             logger.info(
                                 "qbittorrent_torrent_added",
                                 anilist_id=anilist_id,
                                 title=item.title,
                                 backend_path=str(save_path),
-                                qbit_path=str(qbit_save_path),
+                                qbit_path=str(qbit_save_path_mapped),
                             )
+                        else:
+                            QB_TORRENTS_FAILED.inc()
                     except Exception as exc:  # noqa: BLE001
+                        QB_TORRENTS_FAILED.inc()
                         logger.error(
                             "qbittorrent_add_failed",
                             anilist_id=anilist_id,
