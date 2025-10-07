@@ -341,7 +341,8 @@ async def scan_nyaa_sources(
                 tracker.increment_succeeded()
 
                 # Determine if this torrent should be auto-added to qBittorrent
-                should_auto_add = qbit_enabled and qbit_client and path_mapper
+                # qbit_enabled already includes checks for qbittorrent_enabled AND auto_add_to_qbittorrent
+                should_auto_add = qbit_enabled
 
                 if should_auto_add:
                     try:
