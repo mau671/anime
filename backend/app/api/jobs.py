@@ -278,19 +278,6 @@ async def list_job_history(
     )
 
 
-@router.get("/history/{task_id}", response_model=TaskHistoryResource)
-async def get_job(
-    task_id: str,
-    container: Annotated[ServiceContainer, Depends(get_container)],
-) -> TaskHistoryResource:
-    task = await container.task_history_repo.get_by_id(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if "_id" in task:
-        task["id"] = str(task.pop("_id"))
-    return TaskHistoryResource(**task)
-
-
 @router.get("/history/running", response_model=TaskRunningListResponse)
 async def list_running_jobs(
     container: Annotated[ServiceContainer, Depends(get_container)],
@@ -303,6 +290,19 @@ async def list_running_jobs(
         tasks=[TaskHistoryResource(**task) for task in tasks],
         count=len(tasks),
     )
+
+
+@router.get("/history/{task_id}", response_model=TaskHistoryResource)
+async def get_job(
+    task_id: str,
+    container: Annotated[ServiceContainer, Depends(get_container)],
+) -> TaskHistoryResource:
+    task = await container.task_history_repo.get_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if "_id" in task:
+        task["id"] = str(task.pop("_id"))
+    return TaskHistoryResource(**task)
 
 
 @router.get("/history/statistics/summary", response_model=TaskStatisticsResponse)

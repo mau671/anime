@@ -29,7 +29,7 @@ class AnimeRepository:
     async def upsert_many(self, documents: Iterable[AnimeDocument]) -> int:
         count = 0
         for doc in documents:
-            payload = doc.to_mongo()
+            payload = doc.model_dump(by_alias=True, exclude_none=True)
             payload["updated_at"] = utc_now()
             await self._collection.update_one(
                 {"anilist_id": doc.anilist_id},
@@ -63,7 +63,7 @@ class AnimeSettingsRepository:
         return await self._collection.find_one({"anilist_id": anilist_id})
 
     async def upsert(self, document: AnimeSettingsDocument) -> dict:
-        doc = document.to_mongo()
+        doc = document.model_dump(by_alias=True, exclude_none=True)
         created_at = doc.pop("created_at", None)
         doc.setdefault("updated_at", utc_now())
         return await self._collection.find_one_and_update(
@@ -101,7 +101,7 @@ class TorrentSeenRepository:
         return [doc async for doc in cursor]
 
     async def mark_seen(self, document: TorrentSeenDocument) -> dict:
-        doc = document.to_mongo()
+        doc = document.model_dump(by_alias=True, exclude_none=True)
         return await self._collection.find_one_and_update(
             {"anilist_id": document.anilist_id, "link": document.link},
             {"$setOnInsert": doc},
