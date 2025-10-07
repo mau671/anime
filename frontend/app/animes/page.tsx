@@ -3,11 +3,22 @@
 import * as React from "react"
 import Image from "next/image"
 import dynamic from "next/dynamic"
+import { Plus } from "lucide-react"
+import { toast } from "sonner"
 
 import { PageShell } from "@/components/page-shell"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -17,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useAnimes, useSettings } from "@/lib/api-hooks"
+import { addAnime, useAnimes, useSettings } from "@/lib/api-hooks"
 import type { AnimeEnvelope, SettingsEnvelope } from "@/lib/api-types"
 
 type FilteredAnime = {
@@ -40,6 +51,97 @@ const AnimeDetailsDialog = dynamic(
     ),
   { ssr: false }
 )
+
+function AddAnimeDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const [anilistId, setAnilistId] = React.useState("")
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const id = parseInt(anilistId, 10)
+    if (isNaN(id) || id <= 0) {
+      toast.error("ID inválido", {
+        description: "Por favor ingresa un ID de Anilist válido",
+      })
+      return
+    }
+
+    try {
+      setIsSubmitting(true)
+      toast.info("Registrando anime...", {
+        description: "Obteniendo información de Anilist",
+      })
+
+      const result = await addAnime({ anilist_id: id })
+      
+      toast.success("Anime registrado", {
+        description: result.anime.title?.english ?? result.anime.title?.romaji ?? "Anime añadido correctamente",
+      })
+      
+      setAnilistId("")
+      onOpenChange(false)
+    } catch (error) {
+      console.error(error)
+      toast.error("Error al registrar anime", {
+        description: error instanceof Error ? error.message : "No se pudo registrar el anime",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Registrar nuevo anime</DialogTitle>
+          <DialogDescription>
+            Ingresa el ID de Anilist del anime que deseas monitorear.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="anilist_id">ID de Anilist</Label>
+              <Input
+                id="anilist_id"
+                type="number"
+                placeholder="Ej: 21"
+                value={anilistId}
+                onChange={(e) => setAnilistId(e.target.value)}
+                disabled={isSubmitting}
+                min={1}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Encuentra el ID en la URL de Anilist: anilist.co/anime/<strong>21</strong>
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Registrando..." : "Registrar"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function sanitizeDescription(description?: string | null) {
   if (!description) return "Sin descripción"
@@ -180,6 +282,7 @@ function AnimeList({
   settings?: SettingsEnvelope[]
 }) {
   const [query, setQuery] = React.useState("")
+  const [addDialogOpen, setAddDialogOpen] = React.useState(false)
 
   const filtered: FilteredAnime[] = React.useMemo(() => {
     if (!animes) return []
@@ -226,7 +329,13 @@ function AnimeList({
   return (
     <Card>
       <CardHeader className="gap-4">
-        <CardTitle className="text-lg font-semibold">Listado de animes</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg font-semibold">Listado de animes</CardTitle>
+          <Button onClick={() => setAddDialogOpen(true)} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Añadir anime
+          </Button>
+        </div>
         <div className="flex gap-2">
           <Input
             placeholder="Buscar por nombre o consulta"
@@ -272,6 +381,7 @@ function AnimeList({
           </TableBody>
         </Table>
       </CardContent>
+      <AddAnimeDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} />
     </Card>
   )
 }

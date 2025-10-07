@@ -103,6 +103,10 @@ class ScanNyaaResponse(TaskStatusResponse):
     status: Literal["completed", "queued", "ok"] = "completed"
 
 
+class AddAnimeRequest(BaseModel):
+    anilist_id: PositiveInt
+
+
 class AnimeTitle(APIModel):
     romaji: str | None = None
     english: str | None = None

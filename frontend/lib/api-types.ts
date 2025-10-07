@@ -294,6 +294,7 @@ export type TaskStatusResponse = {
 
 export type TorrentSeenRecord = {
   id?: string | null
+  anilist_id?: number | null
   title: string
   link: string
   source?: string | null
@@ -301,6 +302,10 @@ export type TorrentSeenRecord = {
   infohash?: string | null
   saved_at?: string | null
   published_at?: string | null
+}
+
+export type AddAnimeRequest = {
+  anilist_id: number
 }
 
 export type ApiError = {

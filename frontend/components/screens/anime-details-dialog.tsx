@@ -20,9 +20,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useDownloadHistory } from "@/lib/api-hooks"
+import { useDownloadHistory, useQbittorrentHistory } from "@/lib/api-hooks"
 import type { AnimeEnvelope, SettingsEnvelope } from "@/lib/api-types"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Badge } from "@/components/ui/badge"
 
 export type AnimeDetailsDialogProps = {
   open: boolean
@@ -59,6 +60,7 @@ export function AnimeDetailsDialog({
     (typeof anime.id === "number" ? anime.id : undefined)
 
   const { data: downloadHistory, isLoading } = useDownloadHistory(anilistId ?? null)
+  const { data: qbittorrentHistory, isLoading: qbittorrentLoading } = useQbittorrentHistory(anilistId ?? null)
 
   const title =
     anime.title?.english ?? anime.title?.romaji ?? anime.title?.native ?? "Sin título"
@@ -137,7 +139,6 @@ export function AnimeDetailsDialog({
                       <TableRow>
                         <TableHead className="w-[300px]">Título</TableHead>
                         <TableHead className="w-[120px]">Fuente</TableHead>
-                        <TableHead className="w-[140px]">Guardado</TableHead>
                         <TableHead className="w-[140px]">Publicado</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -156,13 +157,11 @@ export function AnimeDetailsDialog({
                           </TableCell>
                           <TableCell className="whitespace-nowrap">{item.source ?? "-"}</TableCell>
                           <TableCell className="whitespace-nowrap">
-                            {item.saved_at
-                              ? new Date(item.saved_at).toLocaleString("es-Co")
-                              : "-"}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
                             {item.published_at
-                              ? new Date(item.published_at).toLocaleString("es-Co")
+                              ? new Date(item.published_at).toLocaleString("es", {
+                                  dateStyle: "short",
+                                  timeStyle: "short",
+                                })
                               : "-"}
                           </TableCell>
                         </TableRow>
@@ -173,6 +172,66 @@ export function AnimeDetailsDialog({
               ) : (
                 <p className="text-muted-foreground text-sm">
                   No se registran descargas para este anime.
+                </p>
+              )}
+            </div>
+
+            <Separator />
+
+            <div className="grid gap-3">
+              <h3 className="text-base font-semibold">Archivos en qBittorrent</h3>
+              {qbittorrentLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" /> Cargando historial de qBittorrent...
+                </div>
+              ) : qbittorrentHistory && qbittorrentHistory.records.length > 0 ? (
+                <ScrollArea className="max-h-[300px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[300px]">Título</TableHead>
+                        <TableHead className="w-[120px]">Categoría</TableHead>
+                        <TableHead className="w-[140px]">Agregado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {qbittorrentHistory.records.map((item) => (
+                        <TableRow key={item.id ?? item.infohash ?? `${item.torrent_path}-${item.title}`}>
+                          <TableCell className="font-medium max-w-[300px]">
+                            <div className="flex flex-col gap-1">
+                              <span className="break-words whitespace-normal leading-tight">
+                                {item.title}
+                              </span>
+                              {item.infohash && (
+                                <code className="text-xs text-muted-foreground">
+                                  {item.infohash.slice(0, 16)}...
+                                </code>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {item.category ? (
+                              <Badge variant="outline">{item.category}</Badge>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {item.created_at
+                              ? new Date(item.created_at).toLocaleString("es", {
+                                  dateStyle: "short",
+                                  timeStyle: "short",
+                                })
+                              : "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  No hay archivos de este anime en qBittorrent.
                 </p>
               )}
             </div>

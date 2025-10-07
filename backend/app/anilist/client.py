@@ -9,7 +9,7 @@ import httpx
 from structlog.stdlib import BoundLogger
 
 from app.anilist.models import Anime
-from app.anilist.queries import ANIME_SEARCH_QUERY
+from app.anilist.queries import ANIME_BY_ID_QUERY, ANIME_SEARCH_QUERY
 from app.core.utils import utc_now
 from app.metrics.registry import REQUEST_LATENCY
 
@@ -84,6 +84,51 @@ class AniListClient:
             fetched_at=utc_now().isoformat(),
         )
         return results
+
+    async def fetch_anime_by_id(
+        self,
+        anilist_id: int,
+        max_retries: int = 3,
+    ) -> Anime | None:
+        """
+        Fetch a single anime by its AniList ID.
+
+        Args:
+            anilist_id: The AniList ID of the anime to fetch
+            max_retries: Maximum number of retry attempts
+
+        Returns:
+            Anime object if found, None otherwise
+        """
+        payload = {
+            "query": ANIME_BY_ID_QUERY,
+            "variables": {
+                "id": anilist_id,
+            },
+        }
+
+        try:
+            response_data = await self._request_with_retry(payload, max_retries=max_retries)
+            media_data = response_data.get("data", {}).get("Media")
+            
+            if not media_data:
+                self._logger.warning("anilist_anime_not_found", anilist_id=anilist_id)
+                return None
+
+            anime = Anime.from_api(media_data)
+            self._logger.info(
+                "anilist_anime_fetched",
+                anilist_id=anilist_id,
+                title=anime.primary_title(),
+            )
+            return anime
+        except Exception as exc:  # noqa: BLE001
+            self._logger.error(
+                "anilist_fetch_by_id_failed",
+                anilist_id=anilist_id,
+                error=str(exc),
+            )
+            return None
 
     async def _request_with_retry(
         self, payload: dict[str, Any], max_retries: int

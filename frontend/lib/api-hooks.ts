@@ -4,6 +4,7 @@ import useSWR, { mutate } from "swr"
 
 import { apiFetch } from "@/lib/api-client"
 import type {
+  AddAnimeRequest,
   AnimeEnvelope,
   AppConfig,
   AppConfigPayload,
@@ -16,6 +17,7 @@ import type {
   JobRunPayload,
   JobStatisticsResponse,
   JobTypeListResponse,
+  QBittorrentHistoryListResponse,
   RunningJobsResponse,
   ScanNyaaJob,
   SettingsEnvelope,
@@ -31,6 +33,11 @@ const CACHE_KEYS = {
   animeSettings: (anilistId: number) => ["settings", anilistId],
   downloads: (anilistId: number, limit?: number) => [
     "downloads",
+    anilistId,
+    limit ?? 50,
+  ],
+  qbittorrentHistory: (anilistId: number, limit?: number) => [
+    "qbittorrent-history",
     anilistId,
     limit ?? 50,
   ],
@@ -52,6 +59,20 @@ export function useAnimes(limit = 50) {
     const data = await apiFetch<AnimeEnvelope[]>(`/animes?limit=${limit}`)
     return data
   })
+}
+
+export async function addAnime(payload: AddAnimeRequest) {
+  const data = await apiFetch<AnimeEnvelope>("/animes", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+
+  await Promise.all([
+    mutate(CACHE_KEYS.animes()),
+    mutate(CACHE_KEYS.settings()),
+  ])
+
+  return data
 }
 
 export function useSettings() {
@@ -83,6 +104,18 @@ export function useDownloadHistory(anilistId: number | null, limit = 50) {
     async () => {
       const data = await apiFetch<TorrentSeenRecord[]>(
         `/settings/${anilistId}/downloads?limit=${limit}`
+      )
+      return data
+    }
+  )
+}
+
+export function useQbittorrentHistory(anilistId: number | null, limit = 50) {
+  return useSWR(
+    anilistId ? CACHE_KEYS.qbittorrentHistory(anilistId, limit) : null,
+    async () => {
+      const data = await apiFetch<QBittorrentHistoryListResponse>(
+        `/jobs/history/qbittorrent/${anilistId}?limit=${limit}`
       )
       return data
     }

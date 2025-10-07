@@ -33,3 +33,30 @@ query ($page: Int, $perPage: Int, $season: MediaSeason, $seasonYear: Int, $statu
   }
 }
 """
+
+ANIME_BY_ID_QUERY = """
+query ($id: Int) {
+  Media(id: $id, type: ANIME) {
+    id
+    title {
+      romaji
+      english
+      native
+    }
+    format
+    season
+    seasonYear
+    status
+    genres
+    synonyms
+    description(asHtml: false)
+    averageScore
+    popularity
+    coverImage {
+      large
+    }
+    siteUrl
+    updatedAt
+  }
+}
+"""

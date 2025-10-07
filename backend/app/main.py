@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.config import router as config_router
 from app.api.dependencies import get_container, get_scheduler
 from app.api.schemas import (
+    AddAnimeRequest,
     AnimeEnvelope,
     AnimeResource,
     SettingsEnvelope,
@@ -245,6 +246,52 @@ async def list_animes(
     items = await container.anime_repo.all()
     limited = items[:limit]
     return [AnimeEnvelope(anime=_build_anime_resource(item)) for item in limited]
+
+
+@app.post("/animes", response_model=AnimeEnvelope, status_code=201)
+async def add_anime(
+    payload: AddAnimeRequest,
+    container: Annotated[ServiceContainer, Depends(get_container)],
+) -> AnimeEnvelope:
+    """
+    Add an anime by its AniList ID.
+    
+    This endpoint fetches anime information from AniList and adds it to the database.
+    If the anime already exists, it will be updated with the latest information.
+    """
+    from app.scheduler.operations import _anime_to_document
+
+    # Check if anime already exists
+    existing = await container.anime_repo.get_by_ids([payload.anilist_id])
+    if existing.get(payload.anilist_id):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Anime with AniList ID {payload.anilist_id} already exists",
+        )
+
+    # Fetch anime from AniList
+    anime = await container.anilist_client.fetch_anime_by_id(payload.anilist_id)
+    if not anime:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Anime with AniList ID {payload.anilist_id} not found on AniList",
+        )
+
+    # Convert to document and save
+    document = _anime_to_document(anime)
+    await container.anime_repo.upsert_many([document])
+
+    # Fetch and return the saved anime
+    saved = await container.anime_repo.get_by_ids([payload.anilist_id])
+    anime_entry = saved.get(payload.anilist_id)
+    
+    if not anime_entry:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save anime to database",
+        )
+
+    return AnimeEnvelope(anime=_build_anime_resource(anime_entry))
 
 
 @app.get("/settings", response_model=list[SettingsEnvelope])
