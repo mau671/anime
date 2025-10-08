@@ -30,7 +30,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { CalendarIcon } from "lucide-react"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 import type { AnimeEnvelope, SettingsEnvelope } from "@/lib/api-types"
 import {
   deleteAnimeSettings,
@@ -61,6 +65,8 @@ const formSchema = z.object({
   tvdb_season: z.string().optional(),
   tmdb_id: z.string().optional(),
   tmdb_season: z.string().optional(),
+  published_after: z.date().optional().nullable(),
+  published_before: z.date().optional().nullable(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -98,6 +104,8 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
       tvdb_season: settings?.tvdb_season?.toString() ?? "",
       tmdb_id: settings?.tmdb_id?.toString() ?? "",
       tmdb_season: settings?.tmdb_season?.toString() ?? "",
+      published_after: settings?.published_after ? new Date(settings.published_after) : undefined,
+      published_before: settings?.published_before ? new Date(settings.published_before) : undefined,
     },
   })
 
@@ -121,6 +129,8 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
       tvdb_season: settings?.tvdb_season?.toString() ?? "",
       tmdb_id: settings?.tmdb_id?.toString() ?? "",
       tmdb_season: settings?.tmdb_season?.toString() ?? "",
+      published_after: settings?.published_after ? new Date(settings.published_after) : undefined,
+      published_before: settings?.published_before ? new Date(settings.published_before) : undefined,
     })
   }, [settings, form, appConfig])
 
@@ -176,6 +186,11 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
       return isNaN(parsed) ? null : parsed
     }
 
+    const parseDate = (value?: Date | null) => {
+      if (!value) return null
+      return value.toISOString()
+    }
+
     try {
       await updateAnimeSettings(anime.anime.anilist_id ?? 0, {
         enabled: values.enabled,
@@ -190,6 +205,8 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
         tvdb_season: parseNumber(values.tvdb_season),
         tmdb_id: parseNumber(values.tmdb_id),
         tmdb_season: parseNumber(values.tmdb_season),
+        published_after: parseDate(values.published_after),
+        published_before: parseDate(values.published_before),
       })
       toast.success("Ajustes actualizados")
       onOpenChange(false)
@@ -231,7 +248,7 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
         <Form {...form}>
           <form className="flex flex-col gap-6" onSubmit={onSubmit}>
             <ScrollArea className="h-[60vh] pr-4">
-              <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-6 px-1 pb-1">
                 <div className="flex items-center justify-between gap-4">
               <Label className="text-sm font-medium">Monitoreo activo</Label>
               <FormField
@@ -449,6 +466,116 @@ export function AnimeConfigDialog({ anime, settings, open, onOpenChange }: Props
                 </div>
               )}
             />
+
+            <Separator />
+
+            <div className="grid gap-4">
+              <div>
+                <h3 className="text-sm font-medium mb-1">Filtros por fecha de publicación</h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Configura fechas para filtrar torrents por su fecha de publicación en Nyaa (útil para filtrar por cour).
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="published_after"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Publicado después de</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                field.value.toLocaleDateString("es-ES", {
+                                  year: "numeric",
+                                  month: "long",
+                                  day: "numeric",
+                                })
+                              ) : (
+                                <span>Seleccionar fecha</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value ?? undefined}
+                            onSelect={field.onChange}
+                            disabled={(date) =>
+                              date > new Date() || date < new Date("1900-01-01")
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormDescription>
+                        Solo descargar torrents publicados después de esta fecha.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="published_before"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Publicado antes de</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                field.value.toLocaleDateString("es-ES", {
+                                  year: "numeric",
+                                  month: "long",
+                                  day: "numeric",
+                                })
+                              ) : (
+                                <span>Seleccionar fecha</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value ?? undefined}
+                            onSelect={field.onChange}
+                            disabled={(date) =>
+                              date > new Date() || date < new Date("1900-01-01")
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormDescription>
+                        Solo descargar torrents publicados antes de esta fecha.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
 
             <Separator />
 

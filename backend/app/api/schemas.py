@@ -26,6 +26,8 @@ class SettingsUpdatePayload(BaseModel):
     tvdb_season: Annotated[int | None, Field(ge=0)] = None
     tmdb_id: PositiveInt | None = None
     tmdb_season: Annotated[int | None, Field(ge=0)] = None
+    published_after: datetime | None = None
+    published_before: datetime | None = None
 
 
 class PathMapping(BaseModel):
@@ -146,6 +148,8 @@ class SettingsResource(APIModel):
     tvdb_season: int | None = None
     tmdb_id: int | None = None
     tmdb_season: int | None = None
+    published_after: datetime | None = None
+    published_before: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

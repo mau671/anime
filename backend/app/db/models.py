@@ -47,6 +47,8 @@ class AnimeSettingsDocument(MongoModel):
     tvdb_season: int | None = None
     tmdb_id: int | None = None
     tmdb_season: int | None = None
+    published_after: datetime | None = None
+    published_before: datetime | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime | None = None
 

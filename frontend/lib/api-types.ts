@@ -73,6 +73,8 @@ export type Settings = {
   tvdb_season?: number | null
   tmdb_id?: number | null
   tmdb_season?: number | null
+  published_after?: string | null
+  published_before?: string | null
   created_at?: string | null
   updated_at?: string | null
   [key: string]: unknown
@@ -134,6 +136,8 @@ export type SettingsUpdatePayload = {
   tvdb_season?: number | null
   tmdb_id?: number | null
   tmdb_season?: number | null
+  published_after?: string | null
+  published_before?: string | null
 }
 
 export type PathMapping = {

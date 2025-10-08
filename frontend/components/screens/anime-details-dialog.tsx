@@ -102,7 +102,7 @@ export function AnimeDetailsDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <ScrollArea className="h-[60vh] pt-4 pb-0">
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6 px-1">
             <DetailRow label="Descripción" value={description} />
             <div className="grid gap-4 md:grid-cols-2">
               <DetailRow

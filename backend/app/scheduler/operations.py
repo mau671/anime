@@ -306,6 +306,8 @@ async def scan_nyaa_sources(
                 excludes=entry.get("excludes") or [],
                 preferred_resolution=entry.get("preferred_resolution"),
                 preferred_subgroup=entry.get("preferred_subgroup"),
+                published_after=entry.get("published_after"),
+                published_before=entry.get("published_before"),
             )
 
             for item in items:
